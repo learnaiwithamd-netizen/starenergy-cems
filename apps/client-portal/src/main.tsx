@@ -1,14 +1,19 @@
-import React from 'react'
+import { StrictMode } from 'react'
 import ReactDOM from 'react-dom/client'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClient } from './lib/queryClient'
 import App from './App'
 import './index.css'
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
+const rootElement = document.getElementById('root')
+if (!rootElement) {
+  throw new Error('Failed to bootstrap client-portal: #root element missing from index.html')
+}
+
+ReactDOM.createRoot(rootElement).render(
+  <StrictMode>
     <QueryClientProvider client={queryClient}>
       <App />
     </QueryClientProvider>
-  </React.StrictMode>
+  </StrictMode>
 )

@@ -1,6 +1,6 @@
 # Story 0.1: Turborepo Monorepo & Shared Package Scaffold
 
-Status: in-progress
+Status: review
 
 ## Story
 
@@ -381,6 +381,7 @@ Monorepo root created at `/Users/abhiroma/Downloads/cems/` (sibling of BMAD work
 
 - 2026-04-21 — Initial scaffold created. Monorepo root: `/Users/abhiroma/Downloads/cems/`. All 10 tasks complete, all 5 ACs verified.
 - 2026-04-21 — Code review complete. 3 adversarial reviewers (Blind Hunter, Edge Case Hunter, Acceptance Auditor) surfaced 24 patch items, 17 deferrals, 10 dismissals.
+- 2026-04-21 — All 24 review patches applied on branch `story/0-1-review-followup`. Full type-check (9/9 packages) and `turbo run build` (4/4) pass. Changes: Button variants remapped to defined tokens; RLS stub now throws; PORT validated; apiFetch rewritten with ApiError class, AbortController timeout, 204 handling, ProblemDetail preservation, FormData-aware Content-Type, trailing-slash normalisation; tsconfig paths include @cems/config and @cems/db; autoprefixer removed (Tailwind v4 Lightning CSS); Dockerfile runs as non-root user; main.tsx hardened against missing #root; ImportMetaEnv augmented; .env.example strengthened; .gitignore adds *.local and *.tsbuildinfo; pyproject.toml sets pytest pythonpath; turbo pinned to 2.9.6; root engines.node added.
 
 ### Review Findings
 
@@ -388,30 +389,30 @@ Monorepo root created at `/Users/abhiroma/Downloads/cems/` (sibling of BMAD work
 
 **Patch (unchecked — awaiting action):**
 
-- [ ] [Review][Patch] Button variants reference undefined Tailwind tokens (`bg-secondary`, `bg-accent`, `border-input`, `bg-background`, `bg-primary/90`) — variants `outline`, `secondary`, `ghost`, `destructive`, `link` render without styling [packages/ui/src/components/Button.tsx:12-14]
-- [ ] [Review][Patch] `applyRlsMiddleware` is a silent no-op — must throw to prevent Story 0.3 consumers from assuming RLS is active [packages/db/src/middleware/rls.ts:11]
-- [ ] [Review][Patch] `PORT` env parsed with `Number()` — `'abc'` → NaN, `''` → 0, both bind wrong; add `isFinite` validation [apps/api/src/server.ts:3]
-- [ ] [Review][Patch] `apiFetch` discards structured `ProblemDetail` (errors[], title, status) — throws generic Error [apps/*/src/lib/api-client.ts:11-14]
-- [ ] [Review][Patch] `apiFetch` forces `Content-Type: application/json` — breaks `FormData` multipart uploads when caller doesn't override [apps/*/src/lib/api-client.ts:6-9]
-- [ ] [Review][Patch] `apiFetch` calls `res.json()` unconditionally — crashes on 204 No Content (DELETE/lock-release responses) [apps/*/src/lib/api-client.ts:15]
-- [ ] [Review][Patch] `apiFetch` has no timeout / AbortController — hanging requests stall UI indefinitely [apps/*/src/lib/api-client.ts]
-- [ ] [Review][Patch] `API_BASE_URL` trailing slash creates double-slash URLs [apps/*/src/lib/api-client.ts:1]
-- [ ] [Review][Patch] Apps' `tsconfig.json` omit `@cems/config` and `@cems/db` from `paths` (Dev Notes mandate) [apps/*/tsconfig.json, apps/api/tsconfig.json]
-- [ ] [Review][Patch] `turbo` devDep uses `^2.3.3` caret — violates "pinned versions" mandate [package.json:14]
-- [ ] [Review][Patch] `autoprefixer` redundant with Tailwind v4 Lightning CSS [apps/*/postcss.config.js]
-- [ ] [Review][Patch] `@cems/config` lacks `"type": "module"`; `eslint/index.js` uses CommonJS inside a flat-config file [packages/config/package.json, packages/config/eslint/index.js]
-- [ ] [Review][Patch] Dockerfile runs as root — add non-root `USER` directive [apps/calc-service/Dockerfile]
-- [ ] [Review][Patch] Root `package.json` missing `engines.node` — allows version drift across contributors [package.json]
-- [ ] [Review][Patch] `VITE_API_BASE_URL` has no `ImportMetaEnv` augmentation — loose typing [apps/*/src/vite-env.d.ts]
-- [ ] [Review][Patch] `main.tsx` imports `React` but never uses binding under react-jsx runtime [apps/*/src/main.tsx:1]
-- [ ] [Review][Patch] Button declares `asChild?: boolean` but never implements Slot pattern — false public API [packages/ui/src/components/Button.tsx:36]
-- [ ] [Review][Patch] `RlsContext.role: string` should be `UserRole` enum from `@cems/types` [packages/db/src/middleware/rls.ts:4]
-- [ ] [Review][Patch] `.env.example` `DATABASE_URL` has empty `password=` + `trustServerCertificate=true` — encourages insecure local habits [.env.example:2]
-- [ ] [Review][Patch] `Button.tsx` imports `'../lib/utils'` without `.js` extension — breaks Node ESM consumers [packages/ui/src/components/Button.tsx:3]
-- [ ] [Review][Patch] Python pytest has no `pythonpath` config; `test_health.py` breaks from any non-calc-service CWD [apps/calc-service/pyproject.toml]
-- [ ] [Review][Patch] `packages/config/package.json` has no `scripts` block — turbo silently skips type-check/lint [packages/config/package.json]
-- [ ] [Review][Patch] Root `.gitignore` missing bare `*.local` (Task 1 subtask explicitly listed it) [.gitignore]
-- [ ] [Review][Patch] `vite-env.d.ts` files not listed in story File List [story file]
+- [x] [Review][Patch] Button variants reference undefined Tailwind tokens (`bg-secondary`, `bg-accent`, `border-input`, `bg-background`, `bg-primary/90`) — variants `outline`, `secondary`, `ghost`, `destructive`, `link` render without styling [packages/ui/src/components/Button.tsx:12-14]
+- [x] [Review][Patch] `applyRlsMiddleware` is a silent no-op — must throw to prevent Story 0.3 consumers from assuming RLS is active [packages/db/src/middleware/rls.ts:11]
+- [x] [Review][Patch] `PORT` env parsed with `Number()` — `'abc'` → NaN, `''` → 0, both bind wrong; add `isFinite` validation [apps/api/src/server.ts:3]
+- [x] [Review][Patch] `apiFetch` discards structured `ProblemDetail` (errors[], title, status) — throws generic Error [apps/*/src/lib/api-client.ts:11-14]
+- [x] [Review][Patch] `apiFetch` forces `Content-Type: application/json` — breaks `FormData` multipart uploads when caller doesn't override [apps/*/src/lib/api-client.ts:6-9]
+- [x] [Review][Patch] `apiFetch` calls `res.json()` unconditionally — crashes on 204 No Content (DELETE/lock-release responses) [apps/*/src/lib/api-client.ts:15]
+- [x] [Review][Patch] `apiFetch` has no timeout / AbortController — hanging requests stall UI indefinitely [apps/*/src/lib/api-client.ts]
+- [x] [Review][Patch] `API_BASE_URL` trailing slash creates double-slash URLs [apps/*/src/lib/api-client.ts:1]
+- [x] [Review][Patch] Apps' `tsconfig.json` omit `@cems/config` and `@cems/db` from `paths` (Dev Notes mandate) [apps/*/tsconfig.json, apps/api/tsconfig.json]
+- [x] [Review][Patch] `turbo` devDep uses `^2.3.3` caret — violates "pinned versions" mandate [package.json:14]
+- [x] [Review][Patch] `autoprefixer` redundant with Tailwind v4 Lightning CSS [apps/*/postcss.config.js]
+- [x] [Review][Patch] `@cems/config` lacks `"type": "module"`; `eslint/index.js` uses CommonJS inside a flat-config file [packages/config/package.json, packages/config/eslint/index.js]
+- [x] [Review][Patch] Dockerfile runs as root — add non-root `USER` directive [apps/calc-service/Dockerfile]
+- [x] [Review][Patch] Root `package.json` missing `engines.node` — allows version drift across contributors [package.json]
+- [x] [Review][Patch] `VITE_API_BASE_URL` has no `ImportMetaEnv` augmentation — loose typing [apps/*/src/vite-env.d.ts]
+- [x] [Review][Patch] `main.tsx` imports `React` but never uses binding under react-jsx runtime [apps/*/src/main.tsx:1]
+- [x] [Review][Patch] Button declares `asChild?: boolean` but never implements Slot pattern — false public API [packages/ui/src/components/Button.tsx:36]
+- [x] [Review][Patch] `RlsContext.role: string` should be `UserRole` enum from `@cems/types` [packages/db/src/middleware/rls.ts:4]
+- [x] [Review][Patch] `.env.example` `DATABASE_URL` has empty `password=` + `trustServerCertificate=true` — encourages insecure local habits [.env.example:2]
+- [x] [Review][Patch] `Button.tsx` imports `'../lib/utils'` without `.js` extension — breaks Node ESM consumers [packages/ui/src/components/Button.tsx:3]
+- [x] [Review][Patch] Python pytest has no `pythonpath` config; `test_health.py` breaks from any non-calc-service CWD [apps/calc-service/pyproject.toml]
+- [x] [Review][Patch] `packages/config/package.json` has no `scripts` block — turbo silently skips type-check/lint [packages/config/package.json]
+- [x] [Review][Patch] Root `.gitignore` missing bare `*.local` (Task 1 subtask explicitly listed it) [.gitignore]
+- [x] [Review][Patch] `vite-env.d.ts` files not listed in story File List [story file]
 
 **Deferred (pre-existing or future story scope):**
 

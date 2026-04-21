@@ -2,9 +2,14 @@
   "name": "@cems/config",
   "version": "0.0.1",
   "private": true,
+  "type": "module",
   "exports": {
     "./typescript/*": "./typescript/*",
     "./eslint": "./eslint/index.js",
     "./tailwind": "./tailwind/preset.ts"
+  },
+  "scripts": {
+    "type-check": "echo 'no TS sources to check'",
+    "lint": "echo 'no JS sources to lint'"
   }
 }
