@@ -1,0 +1,21 @@
+// Prisma schema for Star Energy CEMS
+// Database: Azure SQL (SQL Server) with Row-Level Security
+// Migration: prisma migrate dev (dev) / prisma migrate deploy (CI/CD)
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "sqlserver"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Core Tables (stub — populated in Story 0.3) ───────────────────────────
+
+// Table naming: snake_case plural (architecture mandate)
+// All entities: tenant_id non-nullable
+// Enum values: SCREAMING_SNAKE_CASE
+
+// Full schema defined in Story 0.3: Database Schema & RLS Foundation

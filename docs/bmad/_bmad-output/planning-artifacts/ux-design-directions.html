@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Star Energy CEMS — UX Design Directions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --primary: #1B6BDB;
+    --primary-hover: #1558B8;
+    --primary-light: #EFF4FF;
+    --success: #2E7D32;
+    --success-light: #F0FDF4;
+    --warning: #F5A623;
+    --warning-light: #FFFBEB;
+    --danger: #DC2626;
+    --danger-light: #FEF2F2;
+    --highlight: #E8850A;
+    --dark: #111827;
+    --surface: #F9FAFB;
+    --white: #FFFFFF;
+    --border: #E5E7EB;
+    --text: #111827;
+    --text-secondary: #6B7280;
+    --text-inverse: #FFFFFF;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Inter', system-ui, sans-serif; background: #F3F4F6; color: var(--text); }
+
+  /* NAV */
+  .top-nav {
+    background: var(--dark);
+    color: white;
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 56px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  }
+  .top-nav .logo { font-size: 16px; font-weight: 700; color: white; margin-right: 16px; }
+  .top-nav .logo span { color: var(--warning); }
+  .nav-tabs { display: flex; gap: 4px; flex: 1; }
+  .nav-tab {
+    padding: 6px 14px; border-radius: 6px; cursor: pointer;
+    font-size: 13px; font-weight: 500; color: #9CA3AF;
+    border: none; background: transparent; transition: all 0.15s;
+  }
+  .nav-tab:hover { background: rgba(255,255,255,0.1); color: white; }
+  .nav-tab.active { background: var(--primary); color: white; }
+
+  /* LAYOUT */
+  .page { display: none; padding: 32px 24px; max-width: 1400px; margin: 0 auto; }
+  .page.active { display: block; }
+  .page-title { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
+  .page-desc { color: var(--text-secondary); font-size: 14px; margin-bottom: 28px; }
+
+  /* DIRECTION GRID */
+  .directions-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; }
+  .direction-card {
+    background: white; border-radius: 12px; overflow: hidden;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08); border: 2px solid transparent;
+    transition: all 0.2s; cursor: pointer;
+  }
+  .direction-card:hover { border-color: var(--primary); box-shadow: 0 4px 16px rgba(27,107,219,0.15); }
+  .direction-card.selected { border-color: var(--primary); }
+  .direction-label {
+    padding: 12px 16px; font-size: 13px; font-weight: 600;
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .direction-badge {
+    font-size: 11px; padding: 2px 8px; border-radius: 12px;
+    background: var(--primary-light); color: var(--primary); font-weight: 500;
+  }
+  .mockup-frame { padding: 16px; }
+
+  /* ─── MOCKUP A: AUDIT APP – SECTION OVERVIEW ─── */
+  .audit-phone {
+    width: 320px; margin: 0 auto;
+    border: 2px solid #D1D5DB; border-radius: 28px;
+    overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+    background: var(--surface);
+  }
+  .phone-bar {
+    background: var(--dark); color: white; padding: 10px 16px;
+    font-size: 12px; display: flex; justify-content: space-between; align-items: center;
+  }
+  .phone-bar .store-name { font-weight: 600; font-size: 13px; }
+  .phone-bar .save-badge {
+    font-size: 11px; color: #6EE7B7; display: flex; align-items: center; gap: 4px;
+  }
+  .section-list { padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+  .section-item {
+    background: white; border-radius: 10px; padding: 12px 14px;
+    display: flex; align-items: center; gap: 12px;
+    border: 1px solid var(--border); transition: all 0.15s;
+  }
+  .section-item.complete { border-color: #BBF7D0; background: var(--success-light); }
+  .section-item.active { border-color: var(--primary); background: var(--primary-light); }
+  .section-item.locked { opacity: 0.5; }
+  .section-icon {
+    width: 36px; height: 36px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center; font-size: 16px;
+    flex-shrink: 0;
+  }
+  .section-item.complete .section-icon { background: var(--success-light); }
+  .section-item.active .section-icon { background: var(--primary-light); }
+  .section-item.locked .section-icon { background: var(--surface); }
+  .section-meta { flex: 1; }
+  .section-meta .name { font-size: 13px; font-weight: 600; }
+  .section-meta .sub { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+  .section-status { font-size: 11px; font-weight: 600; }
+  .status-done { color: var(--success); }
+  .status-active { color: var(--primary); }
+  .status-pending { color: var(--text-secondary); }
+  .progress-bar-wrap { padding: 12px 12px 4px; }
+  .progress-label { font-size: 11px; color: var(--text-secondary); margin-bottom: 6px; display: flex; justify-content: space-between; }
+  .progress-track { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--primary); border-radius: 3px; transition: width 0.3s; }
+  .next-btn {
+    margin: 12px; padding: 14px;
+    background: var(--primary); color: white;
+    border: none; border-radius: 10px; font-size: 15px; font-weight: 600;
+    width: calc(100% - 24px); cursor: pointer; transition: background 0.15s;
+  }
+  .next-btn:hover { background: var(--primary-hover); }
+
+  /* ─── MOCKUP B: AUDIT SCREEN – COMPRESSOR FORM ─── */
+  .audit-form-screen { background: var(--surface); border-radius: 12px; overflow: hidden; }
+  .form-topbar {
+    background: white; border-bottom: 1px solid var(--border);
+    padding: 10px 14px; display: flex; align-items: center; gap: 8px;
+  }
+  .back-btn { color: var(--primary); font-size: 13px; font-weight: 500; cursor: pointer; }
+  .breadcrumb { font-size: 11px; color: var(--text-secondary); flex: 1; text-align: center; }
+  .breadcrumb span { color: var(--text); font-weight: 500; }
+  .help-icon { width: 24px; height: 24px; border-radius: 50%; background: var(--primary-light); color: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; cursor: pointer; }
+  .form-section-header {
+    padding: 14px; background: var(--primary-light); border-bottom: 1px solid #BFDBFE;
+  }
+  .form-section-header .title { font-size: 14px; font-weight: 700; color: var(--primary); }
+  .form-section-header .subtitle { font-size: 11px; color: var(--primary); opacity: 0.7; margin-top: 2px; }
+  .form-fields { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+  .field-group label {
+    display: block; font-size: 11px; font-weight: 600; color: var(--text-secondary);
+    text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px;
+  }
+  .field-group label .req { color: var(--danger); margin-left: 2px; }
+  .field-input {
+    width: 100%; padding: 10px 12px; border: 1px solid var(--border);
+    border-radius: 8px; font-size: 14px; font-family: inherit;
+    background: white; color: var(--text);
+  }
+  .field-input.filled { border-color: #BBF7D0; background: #F0FDF4; }
+  .field-input.error { border-color: var(--danger); background: var(--danger-light); }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .photo-capture-btn {
+    width: 100%; padding: 10px; border: 2px dashed var(--border);
+    border-radius: 8px; background: white; color: var(--text-secondary);
+    font-size: 13px; cursor: pointer; display: flex; align-items: center;
+    justify-content: center; gap: 6px; transition: all 0.15s;
+  }
+  .photo-capture-btn:hover { border-color: var(--primary); color: var(--primary); }
+  .photo-thumb {
+    width: 100%; height: 60px; border-radius: 8px; background: #D1FAE5;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; color: var(--success); font-weight: 600; gap: 4px;
+    border: 1px solid #BBF7D0;
+  }
+
+  /* ─── MOCKUP C: ADMIN CONSOLE ─── */
+  .admin-layout { display: flex; height: 480px; border-radius: 12px; overflow: hidden; border: 1px solid var(--border); }
+  .admin-sidebar {
+    width: 200px; background: var(--dark); color: white; flex-shrink: 0;
+    display: flex; flex-direction: column;
+  }
+  .sidebar-logo {
+    padding: 16px; border-bottom: 1px solid rgba(255,255,255,0.1);
+    font-size: 13px; font-weight: 700;
+  }
+  .sidebar-logo span { color: var(--warning); }
+  .sidebar-nav { padding: 8px; flex: 1; }
+  .sidebar-item {
+    padding: 8px 10px; border-radius: 6px; font-size: 12px; font-weight: 500;
+    color: #9CA3AF; display: flex; align-items: center; gap: 8px;
+    cursor: pointer; margin-bottom: 2px; transition: all 0.15s;
+  }
+  .sidebar-item:hover { background: rgba(255,255,255,0.08); color: white; }
+  .sidebar-item.active { background: var(--primary); color: white; }
+  .sidebar-item .icon { font-size: 14px; width: 16px; text-align: center; }
+  .sidebar-badge {
+    margin-left: auto; background: var(--warning); color: white;
+    font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 10px;
+  }
+  .admin-main { flex: 1; background: var(--surface); overflow: hidden; display: flex; flex-direction: column; }
+  .admin-topbar {
+    background: white; border-bottom: 1px solid var(--border);
+    padding: 10px 16px; display: flex; align-items: center; gap: 12px;
+  }
+  .admin-topbar .title { font-size: 14px; font-weight: 700; flex: 1; }
+  .filter-chip {
+    padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 500;
+    background: var(--surface); border: 1px solid var(--border); cursor: pointer;
+    color: var(--text-secondary);
+  }
+  .filter-chip.active { background: var(--primary-light); border-color: var(--primary); color: var(--primary); }
+  .queue-table { flex: 1; overflow-y: auto; }
+  .queue-header {
+    display: grid; grid-template-columns: 2fr 1.2fr 1fr 1fr 80px;
+    padding: 8px 16px; font-size: 10px; font-weight: 600;
+    color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--border); background: var(--surface);
+  }
+  .queue-row {
+    display: grid; grid-template-columns: 2fr 1.2fr 1fr 1fr 80px;
+    padding: 10px 16px; font-size: 12px; border-bottom: 1px solid var(--border);
+    background: white; align-items: center; cursor: pointer; transition: background 0.1s;
+  }
+  .queue-row:hover { background: var(--primary-light); }
+  .queue-row.flagged { background: var(--warning-light); }
+  .store-cell .store { font-weight: 600; font-size: 12px; }
+  .store-cell .client { font-size: 11px; color: var(--text-secondary); }
+  .status-pill {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: 600;
+  }
+  .pill-review { background: var(--primary-light); color: var(--primary); }
+  .pill-flagged { background: var(--warning-light); color: #92400E; }
+  .pill-calc { background: #EDE9FE; color: #5B21B6; }
+  .pill-approved { background: var(--success-light); color: var(--success); }
+  .sla-cell { font-size: 11px; }
+  .sla-ok { color: var(--success); font-weight: 600; }
+  .sla-warn { color: var(--warning); font-weight: 600; }
+  .sla-danger { color: var(--danger); font-weight: 600; }
+  .action-btn {
+    padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600;
+    border: none; cursor: pointer; transition: all 0.15s;
+  }
+  .action-review { background: var(--primary); color: white; }
+  .action-flag { background: var(--warning-light); color: #92400E; }
+  .action-approve { background: var(--success-light); color: var(--success); }
+
+  /* ─── MOCKUP D: LLM FLAG REVIEW ─── */
+  .calc-panel { background: white; border-radius: 12px; overflow: hidden; border: 1px solid var(--border); }
+  .calc-header {
+    padding: 14px 16px; background: white; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .calc-header .title { font-size: 14px; font-weight: 700; flex: 1; }
+  .calc-header .audit-ref { font-size: 11px; color: var(--text-secondary); }
+  .calc-body { padding: 14px; display: flex; gap: 14px; }
+  .calc-left { flex: 1; }
+  .calc-right { width: 240px; }
+  .flag-card {
+    border: 1px solid var(--warning); border-radius: 10px; overflow: hidden; margin-bottom: 12px;
+    box-shadow: 0 2px 8px rgba(245,166,35,0.15);
+  }
+  .flag-header {
+    background: var(--warning-light); padding: 10px 12px;
+    display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #FDE68A;
+  }
+  .flag-icon { font-size: 16px; }
+  .flag-title { font-size: 12px; font-weight: 700; color: #92400E; flex: 1; }
+  .flag-confidence { font-size: 10px; font-weight: 600; color: #92400E; background: #FDE68A; padding: 2px 6px; border-radius: 8px; }
+  .flag-body { padding: 10px 12px; }
+  .flag-reasoning { font-size: 12px; color: var(--text); line-height: 1.5; margin-bottom: 10px; }
+  .flag-data { font-size: 11px; color: var(--text-secondary); background: var(--surface); border-radius: 6px; padding: 8px; margin-bottom: 10px; }
+  .flag-data span { font-weight: 600; color: var(--text); }
+  .flag-actions { display: flex; gap: 8px; }
+  .btn-override {
+    flex: 1; padding: 8px; border-radius: 8px; font-size: 12px; font-weight: 600;
+    background: var(--dark); color: white; border: none; cursor: pointer;
+  }
+  .btn-accept {
+    flex: 1; padding: 8px; border-radius: 8px; font-size: 12px; font-weight: 600;
+    background: var(--success-light); color: var(--success); border: 1px solid #BBF7D0; cursor: pointer;
+  }
+  .justify-field {
+    width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 6px;
+    font-size: 11px; font-family: inherit; resize: none; margin-top: 8px; display: none;
+  }
+  .calc-results { background: var(--surface); border-radius: 10px; padding: 12px; }
+  .calc-results .title { font-size: 12px; font-weight: 700; margin-bottom: 10px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; }
+  .result-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+  .result-row:last-child { border-bottom: none; }
+  .result-label { color: var(--text-secondary); }
+  .result-value { font-weight: 700; color: var(--text); }
+  .result-value.highlight { color: var(--success); }
+  .pipeline-steps { margin-top: 12px; }
+  .pipeline-step { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 11px; }
+  .step-dot { width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; flex-shrink: 0; }
+  .step-done { background: var(--success-light); color: var(--success); }
+  .step-active { background: var(--warning-light); color: var(--warning); }
+  .step-pending { background: var(--border); color: var(--text-secondary); }
+  .step-label { color: var(--text); font-weight: 500; }
+  .step-label.pending-label { color: var(--text-secondary); }
+
+  /* ─── MOCKUP E: CLIENT PORTAL DASHBOARD ─── */
+  .client-layout { border-radius: 12px; overflow: hidden; border: 1px solid var(--border); }
+  .client-topbar {
+    background: var(--dark); padding: 12px 20px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .client-topbar .brand { font-size: 13px; font-weight: 700; color: white; }
+  .client-topbar .brand span { color: var(--warning); }
+  .client-topbar .client-name { font-size: 12px; color: #9CA3AF; flex: 1; }
+  .client-topbar .notif-btn { font-size: 18px; cursor: pointer; }
+  .client-body { background: var(--surface); padding: 16px; }
+  .client-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+  .stat-card { background: white; border-radius: 10px; padding: 14px; border: 1px solid var(--border); }
+  .stat-card .label { font-size: 11px; color: var(--text-secondary); font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; }
+  .stat-card .value { font-size: 24px; font-weight: 700; color: var(--text); margin: 4px 0; }
+  .stat-card .value.green { color: var(--success); }
+  .stat-card .value.blue { color: var(--primary); }
+  .stat-card .value.orange { color: var(--highlight); }
+  .stat-card .sub { font-size: 11px; color: var(--text-secondary); }
+  .sites-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .site-card { background: white; border-radius: 10px; border: 1px solid var(--border); overflow: hidden; cursor: pointer; transition: all 0.15s; }
+  .site-card:hover { border-color: var(--primary); box-shadow: 0 4px 12px rgba(27,107,219,0.1); }
+  .site-card-header { padding: 12px 14px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: flex-start; }
+  .site-card-header .name { font-size: 13px; font-weight: 700; }
+  .site-card-header .number { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+  .site-card-body { padding: 12px 14px; }
+  .metric-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .metric-label { font-size: 11px; color: var(--text-secondary); }
+  .metric-value { font-size: 13px; font-weight: 700; }
+  .metric-value.savings { color: var(--highlight); }
+  .site-card-footer { padding: 8px 14px; background: var(--surface); border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+  .view-report-btn { font-size: 11px; font-weight: 600; color: var(--primary); cursor: pointer; }
+
+  /* ─── MOCKUP F: AUDIT SUBMIT SCREEN ─── */
+  .submit-screen { background: var(--surface); border-radius: 12px; overflow: hidden; }
+  .submit-topbar { background: var(--dark); padding: 12px 16px; display: flex; align-items: center; gap: 8px; }
+  .submit-topbar .t { font-size: 13px; font-weight: 700; color: white; flex: 1; text-align: center; }
+  .submit-body { padding: 16px; }
+  .submit-heading { font-size: 16px; font-weight: 700; text-align: center; margin-bottom: 4px; }
+  .submit-sub { font-size: 12px; color: var(--text-secondary); text-align: center; margin-bottom: 16px; }
+  .sections-review { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+  .review-row {
+    background: white; border-radius: 8px; padding: 10px 14px;
+    display: flex; align-items: center; gap: 10px;
+    border: 1px solid #BBF7D0;
+  }
+  .check-circle {
+    width: 24px; height: 24px; border-radius: 50%; background: var(--success);
+    color: white; display: flex; align-items: center; justify-content: center;
+    font-size: 12px; flex-shrink: 0;
+  }
+  .review-row .label { font-size: 13px; font-weight: 600; flex: 1; }
+  .review-row .count { font-size: 11px; color: var(--text-secondary); }
+  .submit-audit-btn {
+    width: 100%; padding: 16px; background: var(--success); color: white;
+    border: none; border-radius: 10px; font-size: 16px; font-weight: 700;
+    cursor: pointer; transition: background 0.15s; display: flex;
+    align-items: center; justify-content: center; gap: 8px;
+  }
+  .submit-audit-btn:hover { background: #1B5E20; }
+
+  /* ─── SELECTOR ─── */
+  .direction-selector { margin-top: 24px; background: white; border-radius: 12px; padding: 20px; border: 1px solid var(--border); }
+  .selector-title { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
+  .selector-desc { font-size: 13px; color: var(--text-secondary); margin-bottom: 16px; }
+  .selector-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .selector-option {
+    border: 2px solid var(--border); border-radius: 10px; padding: 14px;
+    cursor: pointer; transition: all 0.15s; text-align: center;
+  }
+  .selector-option:hover { border-color: var(--primary); background: var(--primary-light); }
+  .selector-option .icon { font-size: 24px; margin-bottom: 8px; }
+  .selector-option .name { font-size: 13px; font-weight: 700; }
+  .selector-option .desc { font-size: 11px; color: var(--text-secondary); margin-top: 4px; }
+
+  /* PAGE 2 – SINGLE SURFACE DEEP DIVES */
+  .surface-tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+  .surface-tab {
+    padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600;
+    cursor: pointer; border: 2px solid var(--border); background: white; color: var(--text-secondary);
+    transition: all 0.15s;
+  }
+  .surface-tab.active { border-color: var(--primary); background: var(--primary); color: white; }
+  .surface-panel { display: none; }
+  .surface-panel.active { display: block; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
+  .annotation-list { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+  .annotation-item { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; }
+  .annotation-num {
+    width: 24px; height: 24px; border-radius: 50%; background: var(--primary);
+    color: white; font-size: 11px; font-weight: 700; display: flex;
+    align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px;
+  }
+  .annotation-text .bold { font-weight: 600; }
+  .annotation-text .light { color: var(--text-secondary); font-size: 12px; }
+
+  /* CONNECTIVITY STATES */
+  .connectivity-demo { background: white; border-radius: 10px; border: 1px solid var(--border); overflow: hidden; }
+  .conn-state { padding: 10px 14px; display: flex; align-items: center; gap: 10px; font-size: 12px; border-bottom: 1px solid var(--border); }
+  .conn-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .conn-dot.ok { background: var(--success); }
+  .conn-dot.warn { background: var(--warning); }
+  .conn-dot.error { background: var(--danger); }
+  .conn-label { flex: 1; }
+  .conn-badge { font-size: 10px; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+  .badge-ok { background: var(--success-light); color: var(--success); }
+  .badge-warn { background: var(--warning-light); color: #92400E; }
+  .badge-error { background: var(--danger-light); color: var(--danger); }
+
+  /* Color palette display */
+  .color-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 20px; }
+  .color-swatch { border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
+  .swatch-block { height: 48px; }
+  .swatch-label { padding: 6px 8px; background: white; font-size: 10px; }
+  .swatch-name { font-weight: 600; }
+  .swatch-hex { color: var(--text-secondary); }
+
+  /* Report view */
+  .report-preview { background: white; border-radius: 12px; border: 1px solid var(--border); overflow: hidden; }
+  .report-header { background: var(--dark); padding: 20px 24px; }
+  .report-header .brand { color: var(--warning); font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+  .report-header .title { color: white; font-size: 18px; font-weight: 700; }
+  .report-header .subtitle { color: #9CA3AF; font-size: 12px; margin-top: 4px; }
+  .report-toc { padding: 16px 24px; border-bottom: 1px solid var(--border); display: flex; gap: 16px; flex-wrap: wrap; }
+  .toc-item { font-size: 12px; color: var(--primary); font-weight: 500; cursor: pointer; }
+  .report-section { padding: 16px 24px; border-bottom: 1px solid var(--border); }
+  .report-section .sec-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); margin-bottom: 12px; }
+  .savings-big { display: flex; gap: 16px; }
+  .savings-card { flex: 1; background: var(--surface); border-radius: 8px; padding: 14px; text-align: center; }
+  .savings-card .val { font-size: 28px; font-weight: 700; color: var(--highlight); }
+  .savings-card .unit { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+  .savings-card .label { font-size: 11px; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; margin-top: 6px; }
+  .chart-placeholder { height: 80px; background: linear-gradient(135deg, var(--primary-light), var(--success-light)); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 12px; color: var(--primary); font-weight: 600; margin-top: 12px; }
+</style>
+</head>
+<body>
+
+<nav class="top-nav">
+  <div class="logo">Star Energy <span>CEMS</span></div>
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="showPage('overview')">Design Directions</button>
+    <button class="nav-tab" onclick="showPage('audit')">Site Audit App</button>
+    <button class="nav-tab" onclick="showPage('admin')">Admin Console</button>
+    <button class="nav-tab" onclick="showPage('client')">Client Portal</button>
+    <button class="nav-tab" onclick="showPage('tokens')">Design Tokens</button>
+  </div>
+</nav>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- PAGE 1: OVERVIEW / DESIGN DIRECTIONS               -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div class="page active" id="page-overview">
+  <div class="page-title">Design Direction Overview</div>
+  <div class="page-desc">Six key screens across three surfaces — explore, then select the approach for each. Click any card to examine it.</div>
+
+  <div class="directions-grid">
+
+    <!-- A: Audit Section Overview -->
+    <div class="direction-card">
+      <div class="direction-label">
+        Direction A — Site Audit App: Section Overview
+        <span class="direction-badge">Mobile</span>
+      </div>
+      <div class="mockup-frame" style="background:#F3F4F6; padding:24px; display:flex; justify-content:center;">
+        <div class="audit-phone">
+          <div class="phone-bar">
+            <span class="store-name">Sobeys #1042 · Brampton</span>
+            <span class="save-badge">✓ Saved</span>
+          </div>
+          <div class="progress-bar-wrap">
+            <div class="progress-label"><span>Overall Progress</span><span style="font-weight:600;color:var(--primary)">2 of 5 sections</span></div>
+            <div class="progress-track"><div class="progress-fill" style="width:40%"></div></div>
+          </div>
+          <div class="section-list">
+            <div class="section-item complete">
+              <div class="section-icon">📋</div>
+              <div class="section-meta"><div class="name">General</div><div class="sub">11 fields · Auto-filled</div></div>
+              <span class="section-status status-done">✓ Done</span>
+            </div>
+            <div class="section-item complete">
+              <div class="section-icon">❄️</div>
+              <div class="section-meta"><div class="name">Refrigeration</div><div class="sub">3 racks · 8 compressors</div></div>
+              <span class="section-status status-done">✓ Done</span>
+            </div>
+            <div class="section-item active">
+              <div class="section-icon">💨</div>
+              <div class="section-meta"><div class="name">HVAC</div><div class="sub">2 of 6 screens</div></div>
+              <span class="section-status status-active">In Progress</span>
+            </div>
+            <div class="section-item locked">
+              <div class="section-icon">💡</div>
+              <div class="section-meta"><div class="name">Lighting</div><div class="sub">Not started</div></div>
+              <span class="section-status status-pending">Pending</span>
+            </div>
+            <div class="section-item locked">
+              <div class="section-icon">🏢</div>
+              <div class="section-meta"><div class="name">Building Envelope</div><div class="sub">Not started</div></div>
+              <span class="section-status status-pending">Pending</span>
+            </div>
+          </div>
+          <button class="next-btn">Continue HVAC →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- B: Audit Form Screen -->
+    <div class="direction-card">
+      <div class="direction-label">
+        Direction B — Site Audit App: Compressor Data Entry
+        <span class="direction-badge">Mobile</span>
+      </div>
+      <div class="mockup-frame" style="background:#F3F4F6; padding:16px;">
+        <div class="audit-form-screen">
+          <div class="form-topbar">
+            <span class="back-btn">← Rack 2</span>
+            <span class="breadcrumb">Refrig › Rack 2 › <span>Compressor 1</span></span>
+            <div class="help-icon">?</div>
+          </div>
+          <div class="form-section-header">
+            <div class="title">Compressor #1 — Nameplate Data</div>
+            <div class="subtitle">Rack 2 · Machine Room · Required: 5 fields</div>
+          </div>
+          <div class="form-fields">
+            <div class="field-group">
+              <label>Make <span class="req">*</span></label>
+              <input class="field-input filled" value="Copeland" readonly>
+            </div>
+            <div class="field-row">
+              <div class="field-group">
+                <label>Model # <span class="req">*</span></label>
+                <input class="field-input filled" value="ZRD94KCE" readonly>
+              </div>
+              <div class="field-group">
+                <label>HP <span class="req">*</span></label>
+                <input class="field-input filled" value="7.5" readonly>
+              </div>
+            </div>
+            <div class="field-group">
+              <label>Refrigerant <span class="req">*</span></label>
+              <input class="field-input error" placeholder="Select refrigerant..." readonly>
+            </div>
+            <div class="field-group">
+              <label>Nameplate Photo <span class="req">*</span></label>
+              <div class="photo-thumb">✓ Photo captured · Rack 2 / Comp #1 / Nameplate</div>
+            </div>
+            <div class="field-group">
+              <label>Notes</label>
+              <input class="field-input" placeholder="Optional note..." readonly>
+            </div>
+          </div>
+          <div style="padding:0 12px 12px;">
+            <button style="width:100%;padding:13px;background:var(--border);color:var(--text-secondary);border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:not-allowed;">1 required field remaining</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- C: Admin Queue -->
+    <div class="direction-card">
+      <div class="direction-label">
+        Direction C — Admin Console: Audit Queue
+        <span class="direction-badge">Desktop</span>
+      </div>
+      <div class="mockup-frame" style="padding:0;">
+        <div class="admin-layout">
+          <div class="admin-sidebar">
+            <div class="sidebar-logo">Star Energy <span>CEMS</span></div>
+            <div class="sidebar-nav">
+              <div class="sidebar-item active"><span class="icon">📋</span> Audit Queue <span class="sidebar-badge">8</span></div>
+              <div class="sidebar-item"><span class="icon">🔢</span> Calculations</div>
+              <div class="sidebar-item"><span class="icon">📄</span> Reports</div>
+              <div class="sidebar-item"><span class="icon">👥</span> Users</div>
+              <div class="sidebar-item"><span class="icon">⚙️</span> Reference Data</div>
+            </div>
+          </div>
+          <div class="admin-main">
+            <div class="admin-topbar">
+              <div class="title">Audit Queue</div>
+              <div class="filter-chip active">All (8)</div>
+              <div class="filter-chip">Flagged (2)</div>
+              <div class="filter-chip">Pending (3)</div>
+            </div>
+            <div class="queue-table">
+              <div class="queue-header"><span>Site / Client</span><span>Status</span><span>Submitted</span><span>SLA</span><span>Action</span></div>
+              <div class="queue-row flagged">
+                <div class="store-cell"><div class="store">Sobeys #1042 · Brampton</div><div class="client">Sobeys Inc.</div></div>
+                <span class="status-pill pill-flagged">⚠ Flagged</span>
+                <span style="font-size:11px;color:var(--text-secondary)">Today 11:05</span>
+                <span class="sla-danger">1h 45m left</span>
+                <button class="action-btn action-flag">Review</button>
+              </div>
+              <div class="queue-row">
+                <div class="store-cell"><div class="store">Metro #0821 · Oakville</div><div class="client">Metro Inc.</div></div>
+                <span class="status-pill pill-calc">Calc Ready</span>
+                <span style="font-size:11px;color:var(--text-secondary)">Today 09:30</span>
+                <span class="sla-ok">3h 20m left</span>
+                <button class="action-btn action-approve">Approve</button>
+              </div>
+              <div class="queue-row">
+                <div class="store-cell"><div class="store">Sobeys #0394 · Mississauga</div><div class="client">Sobeys Inc.</div></div>
+                <span class="status-pill pill-review">In Review</span>
+                <span style="font-size:11px;color:var(--text-secondary)">Today 08:15</span>
+                <span class="sla-warn">2h 10m left</span>
+                <button class="action-btn action-review">Open</button>
+              </div>
+              <div class="queue-row flagged">
+                <div class="store-cell"><div class="store">IGA #1120 · Montreal</div><div class="client">Sobeys Inc.</div></div>
+                <span class="status-pill pill-flagged">⚠ Flagged</span>
+                <span style="font-size:11px;color:var(--text-secondary)">Yesterday</span>
+                <span class="sla-danger">Paused</span>
+                <button class="action-btn action-flag">Review</button>
+              </div>
+              <div class="queue-row">
+                <div class="store-cell"><div class="store">Metro #0312 · Hamilton</div><div class="client">Metro Inc.</div></div>
+                <span class="status-pill pill-approved">✓ Approved</span>
+                <span style="font-size:11px;color:var(--text-secondary)">Yesterday</span>
+                <span class="sla-ok">Done</span>
+                <button class="action-btn action-review">View</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- D: LLM Flag Review -->
+    <div class="direction-card">
+      <div class="direction-label">
+        Direction D — Admin Console: LLM Flag Review
+        <span class="direction-badge">Desktop</span>
+      </div>
+      <div class="mockup-frame" style="padding:12px; background:var(--surface);">
+        <div class="calc-panel">
+          <div class="calc-header">
+            <div class="title">Calculation Review — Sobeys #1042 · Brampton</div>
+            <div class="audit-ref">AUD-2026-0419-001 · Submitted 11:05am</div>
+          </div>
+          <div class="calc-body">
+            <div class="calc-left">
+              <div class="flag-card">
+                <div class="flag-header">
+                  <span class="flag-icon">⚠️</span>
+                  <span class="flag-title">Anomaly: Suction Pressure — Rack 2</span>
+                  <span class="flag-confidence">87% confidence</span>
+                </div>
+                <div class="flag-body">
+                  <div class="flag-reasoning">Suction pressure reading of <strong>48 PSI</strong> on Rack 2 is unusually high for R404A at recorded ambient temperature (22°C). Expected range: 28–38 PSI. This may indicate a field measurement error or an equipment issue requiring attention.</div>
+                  <div class="flag-data">Field reading: <span>48 PSI</span> · Expected: <span>28–38 PSI</span> · Refrigerant: <span>R404A</span></div>
+                  <div class="flag-actions">
+                    <button class="btn-override" onclick="this.closest('.flag-card').querySelector('.justify-field').style.display='block'">Override &amp; Justify</button>
+                    <button class="btn-accept">Accept Flag</button>
+                  </div>
+                  <textarea class="justify-field" placeholder="Enter justification for override (required)..." rows="2"></textarea>
+                </div>
+              </div>
+              <div style="background:var(--success-light);border:1px solid #BBF7D0;border-radius:8px;padding:10px 12px;font-size:12px;color:var(--success);display:flex;gap:8px;align-items:center;">
+                <span>✓</span> <span>All other calculation inputs within expected ranges — 1 flag requires resolution before approval.</span>
+              </div>
+            </div>
+            <div class="calc-right">
+              <div class="calc-results">
+                <div class="title">Calculation Results</div>
+                <div class="result-row"><span class="result-label">Baseline kWh/yr</span><span class="result-value">187,420</span></div>
+                <div class="result-row"><span class="result-label">ECM Savings</span><span class="result-value highlight">34,280 kWh</span></div>
+                <div class="result-row"><span class="result-label">Cost Savings</span><span class="result-value highlight">$4,113/yr</span></div>
+                <div class="result-row"><span class="result-label">CO₂ Reduction</span><span class="result-value">15.4 tonnes</span></div>
+              </div>
+              <div class="pipeline-steps">
+                <div class="pipeline-step"><div class="step-dot step-done">✓</div><span class="step-label">Data received</span></div>
+                <div class="pipeline-step"><div class="step-dot step-done">✓</div><span class="step-label">Calculations run</span></div>
+                <div class="pipeline-step"><div class="step-dot step-active">!</div><span class="step-label" style="color:var(--warning);font-weight:700">Flag: awaiting review</span></div>
+                <div class="pipeline-step"><div class="step-dot step-pending">4</div><span class="step-label pending-label">Admin approval</span></div>
+                <div class="pipeline-step"><div class="step-dot step-pending">5</div><span class="step-label pending-label">Publish to client</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- E: Client Portal Dashboard -->
+    <div class="direction-card">
+      <div class="direction-label">
+        Direction E — Client Portal: Multi-Site Dashboard
+        <span class="direction-badge">Desktop</span>
+      </div>
+      <div class="mockup-frame" style="padding:0;">
+        <div class="client-layout">
+          <div class="client-topbar">
+            <div class="brand">Star Energy <span>CEMS</span></div>
+            <div class="client-name">Sobeys Inc. · Sandra Chen</div>
+            <span class="notif-btn">🔔</span>
+          </div>
+          <div class="client-body">
+            <div class="client-stats">
+              <div class="stat-card"><div class="label">Active Sites</div><div class="value blue">8</div><div class="sub">of 40 locations</div></div>
+              <div class="stat-card"><div class="label">Reports Ready</div><div class="value green">5</div><div class="sub">New this month</div></div>
+              <div class="stat-card"><div class="label">Est. Annual Savings</div><div class="value orange">$187K</div><div class="sub">Across audited sites</div></div>
+              <div class="stat-card"><div class="label">CO₂ Reduction</div><div class="value green">84t</div><div class="sub">Projected</div></div>
+            </div>
+            <div class="sites-grid">
+              <div class="site-card">
+                <div class="site-card-header">
+                  <div><div class="name">Brampton #1042</div><div class="number">Audit: Apr 19, 2026</div></div>
+                  <span class="status-pill pill-approved" style="font-size:10px;">✓ Done</span>
+                </div>
+                <div class="site-card-body">
+                  <div class="metric-row"><span class="metric-label">Annual Savings</span><span class="metric-value savings">$4,113</span></div>
+                  <div class="metric-row"><span class="metric-label">Energy Reduction</span><span class="metric-value">34,280 kWh</span></div>
+                </div>
+                <div class="site-card-footer"><span style="font-size:11px;color:var(--text-secondary);">Report: Apr 19, 2026</span><span class="view-report-btn">View Report →</span></div>
+              </div>
+              <div class="site-card">
+                <div class="site-card-header">
+                  <div><div class="name">Mississauga #0394</div><div class="number">Audit: Apr 18, 2026</div></div>
+                  <span class="status-pill pill-review" style="font-size:10px;">In Review</span>
+                </div>
+                <div class="site-card-body">
+                  <div class="metric-row"><span class="metric-label">Annual Savings</span><span class="metric-value" style="color:var(--text-secondary);">Calculating…</span></div>
+                  <div class="metric-row"><span class="metric-label">Energy Reduction</span><span class="metric-value" style="color:var(--text-secondary);">Pending</span></div>
+                </div>
+                <div class="site-card-footer"><span style="font-size:11px;color:var(--text-secondary);">Report pending</span><span style="font-size:11px;color:var(--text-secondary);">—</span></div>
+              </div>
+              <div class="site-card">
+                <div class="site-card-header">
+                  <div><div class="name">Oakville #2201</div><div class="number">Audit: Apr 12, 2026</div></div>
+                  <span class="status-pill pill-approved" style="font-size:10px;">✓ Done</span>
+                </div>
+                <div class="site-card-body">
+                  <div class="metric-row"><span class="metric-label">Annual Savings</span><span class="metric-value savings">$6,840</span></div>
+                  <div class="metric-row"><span class="metric-label">Energy Reduction</span><span class="metric-value">57,000 kWh</span></div>
+                </div>
+                <div class="site-card-footer"><span style="font-size:11px;color:var(--text-secondary);">Report: Apr 14, 2026</span><span class="view-report-btn">View Report →</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- F: Audit Submit -->
+    <div class="direction-card">
+      <div class="direction-label">
+        Direction F — Site Audit App: Review &amp; Submit
+        <span class="direction-badge">Mobile</span>
+      </div>
+      <div class="mockup-frame" style="background:#F3F4F6; padding:24px; display:flex; justify-content:center;">
+        <div class="audit-phone">
+          <div class="submit-topbar"><span class="t">Review &amp; Submit</span></div>
+          <div class="submit-body">
+            <div class="submit-heading">Audit Complete ✓</div>
+            <div class="submit-sub">Sobeys #1042 · Brampton · All sections complete</div>
+            <div class="sections-review">
+              <div class="review-row"><div class="check-circle">✓</div><span class="label">General</span><span class="count">11 fields</span></div>
+              <div class="review-row"><div class="check-circle">✓</div><span class="label">Refrigeration</span><span class="count">3 racks · 8 compressors</span></div>
+              <div class="review-row"><div class="check-circle">✓</div><span class="label">HVAC</span><span class="count">6 screens · 4 photos</span></div>
+              <div class="review-row"><div class="check-circle">✓</div><span class="label">Lighting</span><span class="count">12 fields</span></div>
+              <div class="review-row"><div class="check-circle">✓</div><span class="label">Building Envelope</span><span class="count">8 fields</span></div>
+            </div>
+            <div style="text-align:center;font-size:11px;color:var(--text-secondary);margin-bottom:12px;">⏱ 3h 52m total audit time · 24 photos captured</div>
+            <button class="submit-audit-btn">🚀 Submit Audit</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /directions-grid -->
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- PAGE 2: AUDIT APP DEEP DIVE                        -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div class="page" id="page-audit">
+  <div class="page-title">Site Audit App — Detailed Design</div>
+  <div class="page-desc">Mobile-first. Field conditions. Touch-forward. Every pixel earns its place.</div>
+  <div class="two-col">
+    <div>
+      <div style="background:white;border-radius:12px;padding:16px;border:1px solid var(--border);margin-bottom:16px;">
+        <div style="font-size:13px;font-weight:700;margin-bottom:12px;">Connectivity States</div>
+        <div class="connectivity-demo">
+          <div class="conn-state"><div class="conn-dot ok"></div><div class="conn-label"><strong>Connected</strong> — auto-save active</div><span class="conn-badge badge-ok">Saved ✓</span></div>
+          <div class="conn-state"><div class="conn-dot warn"></div><div class="conn-label"><strong>Reconnecting…</strong> — no data lost</div><span class="conn-badge badge-warn">Reconnecting</span></div>
+          <div class="conn-state" style="border-bottom:none"><div class="conn-dot error"></div><div class="conn-label"><strong>Offline</strong> — last saved 2m ago</div><span class="conn-badge badge-error">Offline</span></div>
+        </div>
+      </div>
+      <div style="background:white;border-radius:12px;padding:16px;border:1px solid var(--border);">
+        <div style="font-size:13px;font-weight:700;margin-bottom:12px;">Required Field Validation States</div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <div><label style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Empty — not yet interacted</label><input class="field-input" style="width:100%" placeholder="Compressor model number" readonly></div>
+          <div><label style="font-size:11px;font-weight:600;color:var(--success);text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Filled ✓</label><input class="field-input filled" style="width:100%" value="Copeland ZRD94KCE" readonly></div>
+          <div><label style="font-size:11px;font-weight:600;color:var(--danger);text-transform:uppercase;letter-spacing:0.04em;display:block;margin-bottom:4px;">Error — tried to proceed</label><input class="field-input error" style="width:100%" placeholder="Required — tap to fill" readonly></div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <ul class="annotation-list">
+        <li class="annotation-item"><div class="annotation-num">1</div><div class="annotation-text"><div class="bold">Breadcrumb always visible</div><div class="light">Deep refrigeration hierarchy (Machine Room › Rack 2 › Compressor 1) shown in compact topbar — auditor always knows their position</div></div></li>
+        <li class="annotation-item"><div class="annotation-num">2</div><div class="annotation-text"><div class="bold">One job per screen</div><div class="light">Each screen is one equipment item. Related fields visible together, but never two separate items on one screen</div></div></li>
+        <li class="annotation-item"><div class="annotation-num">3</div><div class="annotation-text"><div class="bold">Photo auto-tagging</div><div class="light">Tap camera → capture → photo tagged to current equipment context automatically. Thumbnail shows tag confirmation immediately</div></div></li>
+        <li class="annotation-item"><div class="annotation-num">4</div><div class="annotation-text"><div class="bold">Next button is the progress indicator</div><div class="light">When disabled, it shows "N required fields remaining" — the button itself communicates what's left without a separate error message</div></div></li>
+        <li class="annotation-item"><div class="annotation-num">5</div><div class="annotation-text"><div class="bold">Connectivity: calm, not alarming</div><div class="light">Persistent banner replaces "Saved ✓" badge during reconnection. No modal, no data loss messaging. Data is always server-safe</div></div></li>
+        <li class="annotation-item"><div class="annotation-num">6</div><div class="annotation-text"><div class="bold">Submit screen = certainty</div><div class="light">All 5 sections shown as green checkmarks with field counts. Auditor has unambiguous proof the audit is complete before submitting</div></div></li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- PAGE 3: ADMIN CONSOLE DEEP DIVE                    -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div class="page" id="page-admin">
+  <div class="page-title">Admin Console — Detailed Design</div>
+  <div class="page-desc">Command center for Star Energy engineers. Dense, efficient, state-aware. Every action is scoped to the current audit state.</div>
+  <div class="two-col">
+    <div>
+      <div style="background:white;border-radius:12px;padding:16px;border:1px solid var(--border);margin-bottom:16px;">
+        <div style="font-size:13px;font-weight:700;margin-bottom:12px;">Audit State Machine — Visual Pipeline</div>
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;background:var(--surface);font-size:12px;"><span style="width:10px;height:10px;border-radius:50%;background:#9CA3AF;flex-shrink:0"></span><span style="flex:1;font-weight:600;color:var(--text-secondary);">DRAFT</span><span style="font-size:11px;color:var(--text-secondary);">Auditor working</span></div>
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;background:var(--primary-light);font-size:12px;"><span style="width:10px;height:10px;border-radius:50%;background:var(--primary);flex-shrink:0"></span><span style="flex:1;font-weight:600;color:var(--primary);">IN_REVIEW</span><span style="font-size:11px;color:var(--primary);">Claude running calculations</span></div>
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;background:var(--warning-light);font-size:12px;"><span style="width:10px;height:10px;border-radius:50%;background:var(--warning);flex-shrink:0"></span><span style="flex:1;font-weight:600;color:#92400E;">FLAGGED</span><span style="font-size:11px;color:#92400E;">SLA paused · Admin review required</span></div>
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;background:#EDE9FE;font-size:12px;"><span style="width:10px;height:10px;border-radius:50%;background:#7C3AED;flex-shrink:0"></span><span style="flex:1;font-weight:600;color:#5B21B6;">CALC_COMPLETE</span><span style="font-size:11px;color:#5B21B6;">Ready for admin approval</span></div>
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;background:var(--success-light);font-size:12px;"><span style="width:10px;height:10px;border-radius:50%;background:var(--success);flex-shrink:0"></span><span style="flex:1;font-weight:600;color:var(--success);">APPROVED</span><span style="font-size:11px;color:var(--success);">Published to client portal</span></div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <ul class="annotation-list">
+        <li class="annotation-item"><div class="annotation-num">1</div><div class="annotation-text"><div class="bold">Dark sidebar = command center tone</div><div class="light">Navy `#111827` sidebar signals a professional, authoritative workspace. Raj is the authority here — not a form-filler</div></div></li>
+        <li class="annotation-item"><div class="annotation-num">2</div><div class="annotation-text"><div class="bold">State-scoped actions only</div><div class="light">"Approve" only appears in CALC_COMPLETE rows. "Override" only in FLAGGED. No irrelevant buttons cluttering the interface</div></div></li>
+        <li class="annotation-item"><div class="annotation-num">3</div><div class="annotation-text"><div class="bold">LLM flag = informative, not alarming</div><div class="light">Flag card shows Claude's reasoning and confidence score. Override requires typed justification — deliberate friction that protects audit quality</div></div></li>
+        <li class="annotation-item"><div class="annotation-num">4</div><div class="annotation-text"><div class="bold">SLA clock visible and color-coded</div><div class="light">Green = time to spare. Amber = under 3 hours. Red = urgent. Paused SLA shown explicitly when audit is FLAGGED</div></div></li>
+        <li class="annotation-item"><div class="annotation-num">5</div><div class="annotation-text"><div class="bold">Side panel for detail (not page navigation)</div><div class="light">Audit detail slides in from right without leaving the queue — Raj maintains queue context while drilling into a specific audit</div></div></li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- PAGE 4: CLIENT PORTAL DEEP DIVE                    -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div class="page" id="page-client">
+  <div class="page-title">Client Portal — Detailed Design</div>
+  <div class="page-desc">Executive-clean, read-only, credible. Sandra's dashboard is also a sales tool for Star Energy.</div>
+  <div class="two-col" style="align-items:start">
+    <div class="report-preview">
+      <div class="report-header">
+        <div class="brand">★ Star Energy</div>
+        <div class="title">Energy Audit Report</div>
+        <div class="subtitle">Sobeys #1042 · Brampton, ON · April 19, 2026</div>
+      </div>
+      <div class="report-toc">
+        <span class="toc-item">Executive Summary</span>
+        <span class="toc-item">Equipment Inventory</span>
+        <span class="toc-item">Energy Baseline</span>
+        <span class="toc-item">Savings Projections</span>
+        <span class="toc-item">Methodology</span>
+      </div>
+      <div class="report-section">
+        <div class="sec-title">Projected Annual Savings</div>
+        <div class="savings-big">
+          <div class="savings-card"><div class="val">$4,113</div><div class="unit">CAD / year</div><div class="label">Cost Savings</div></div>
+          <div class="savings-card"><div class="val">34,280</div><div class="unit">kWh / year</div><div class="label">Energy Reduction</div></div>
+          <div class="savings-card"><div class="val">15.4t</div><div class="unit">CO₂ / year</div><div class="label">Emissions Avoided</div></div>
+        </div>
+        <div class="chart-placeholder">📊 Energy Baseline Chart — Weather-Normalized (CDD/HDD)</div>
+      </div>
+      <div class="report-section" style="display:flex;justify-content:space-between;align-items:center;border-bottom:none">
+        <span style="font-size:12px;color:var(--text-secondary);">Approved by Raj Patel · Star Energy</span>
+        <button style="padding:8px 16px;background:var(--primary);color:white;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;">⬇ Download PDF</button>
+      </div>
+    </div>
+    <ul class="annotation-list">
+      <li class="annotation-item"><div class="annotation-num">1</div><div class="annotation-text"><div class="bold">Savings in human terms first</div><div class="light">$4,113/yr leads, not kWh. Sandra's CFO cares about dollars and CO₂ tonnes — not raw energy units. Energy reduction is secondary</div></div></li>
+      <li class="annotation-item"><div class="annotation-num">2</div><div class="annotation-text"><div class="bold">Table of contents for navigation</div><div class="light">Reports can be long. TOC links let Sandra jump to Savings Projections without scrolling past equipment inventory she doesn't need right now</div></div></li>
+      <li class="annotation-item"><div class="annotation-num">3</div><div class="annotation-text"><div class="bold">Methodology expandable, not foregrounded</div><div class="light">Transparent methodology builds trust, but Sandra's CFO doesn't want to read regression equations. Methodology section is available but collapsed by default</div></div></li>
+      <li class="annotation-item"><div class="annotation-num">4</div><div class="annotation-text"><div class="bold">Approval attribution visible</div><div class="light">"Approved by Raj Patel · Star Energy" on every report — a credibility signal and a clear chain of accountability</div></div></li>
+      <li class="annotation-item"><div class="annotation-num">5</div><div class="annotation-text"><div class="bold">PDF download is always present</div><div class="light">Sandra needs to share this with her CFO. PDF button is persistent in the report footer — one tap from anywhere in the report</div></div></li>
+      <li class="annotation-item"><div class="annotation-num">6</div><div class="annotation-text"><div class="bold">Dashboard site cards = portfolio story</div><div class="light">Each card shows savings potential. Across 8 sites, the cumulative impact ($187K/yr) tells a portfolio story that justifies expanding the engagement</div></div></li>
+    </ul>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- PAGE 5: DESIGN TOKENS                              -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div class="page" id="page-tokens">
+  <div class="page-title">Design Tokens — Star Energy CEMS</div>
+  <div class="page-desc">Brand-derived color palette + Inter typography. All tokens defined as CSS variables in `packages/config/tailwind/preset.ts`.</div>
+
+  <div class="color-grid">
+    <div class="color-swatch"><div class="swatch-block" style="background:#1B6BDB"></div><div class="swatch-label"><div class="swatch-name">Primary Blue</div><div class="swatch-hex">#1B6BDB</div></div></div>
+    <div class="color-swatch"><div class="swatch-block" style="background:#2E7D32"></div><div class="swatch-label"><div class="swatch-name">Success Green</div><div class="swatch-hex">#2E7D32</div></div></div>
+    <div class="color-swatch"><div class="swatch-block" style="background:#F5A623"></div><div class="swatch-label"><div class="swatch-name">Warning Amber</div><div class="swatch-hex">#F5A623</div></div></div>
+    <div class="color-swatch"><div class="swatch-block" style="background:#DC2626"></div><div class="swatch-label"><div class="swatch-name">Danger Red</div><div class="swatch-hex">#DC2626</div></div></div>
+    <div class="color-swatch"><div class="swatch-block" style="background:#E8850A"></div><div class="swatch-label"><div class="swatch-name">Highlight Orange</div><div class="swatch-hex">#E8850A</div></div></div>
+    <div class="color-swatch"><div class="swatch-block" style="background:#111827"></div><div class="swatch-label"><div class="swatch-name">Dark Surface</div><div class="swatch-hex">#111827</div></div></div>
+    <div class="color-swatch"><div class="swatch-block" style="background:#F9FAFB;border:1px solid var(--border)"></div><div class="swatch-label"><div class="swatch-name">Light Surface</div><div class="swatch-hex">#F9FAFB</div></div></div>
+    <div class="color-swatch"><div class="swatch-block" style="background:#6B7280"></div><div class="swatch-label"><div class="swatch-name">Text Secondary</div><div class="swatch-hex">#6B7280</div></div></div>
+    <div class="color-swatch"><div class="swatch-block" style="background:#EFF4FF"></div><div class="swatch-label"><div class="swatch-name">Primary Light</div><div class="swatch-hex">#EFF4FF</div></div></div>
+    <div class="color-swatch"><div class="swatch-block" style="background:#E5E7EB"></div><div class="swatch-label"><div class="swatch-name">Border</div><div class="swatch-hex">#E5E7EB</div></div></div>
+  </div>
+
+  <div style="background:white;border-radius:12px;padding:20px;border:1px solid var(--border);margin-bottom:20px;">
+    <div style="font-size:14px;font-weight:700;margin-bottom:16px;">Typography — Inter</div>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <div style="display:flex;align-items:baseline;gap:16px;padding-bottom:10px;border-bottom:1px solid var(--border);"><span style="font-size:30px;font-weight:700;line-height:1">Page Title</span><span style="font-size:11px;color:var(--text-secondary);">30px / 700 / lh 1.2 — Dashboard hero metrics</span></div>
+      <div style="display:flex;align-items:baseline;gap:16px;padding-bottom:10px;border-bottom:1px solid var(--border);"><span style="font-size:24px;font-weight:700">Section Heading</span><span style="font-size:11px;color:var(--text-secondary);">24px / 700 — Page titles, report headings</span></div>
+      <div style="display:flex;align-items:baseline;gap:16px;padding-bottom:10px;border-bottom:1px solid var(--border);"><span style="font-size:18px;font-weight:500">Card Title</span><span style="font-size:11px;color:var(--text-secondary);">18px / 500 — Section names, card headers</span></div>
+      <div style="display:flex;align-items:baseline;gap:16px;padding-bottom:10px;border-bottom:1px solid var(--border);"><span style="font-size:16px;font-weight:400">Body Text (Audit App minimum)</span><span style="font-size:11px;color:var(--text-secondary);">16px / 400 — Form fields, body copy, field labels</span></div>
+      <div style="display:flex;align-items:baseline;gap:16px;padding-bottom:10px;border-bottom:1px solid var(--border);"><span style="font-size:14px;font-weight:400">Admin Table Row</span><span style="font-size:11px;color:var(--text-secondary);">14px / 400 — Admin console tables, secondary content</span></div>
+      <div style="display:flex;align-items:baseline;gap:16px;"><span style="font-size:12px;font-weight:500;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-secondary)">FIELD LABEL</span><span style="font-size:11px;color:var(--text-secondary);">12px / 500 / uppercase / tracking — Form field labels, table headers</span></div>
+    </div>
+  </div>
+
+  <div style="background:white;border-radius:12px;padding:20px;border:1px solid var(--border);">
+    <div style="font-size:14px;font-weight:700;margin-bottom:12px;">Audit State Badge Reference</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;">
+      <span class="status-pill" style="background:#F3F4F6;color:#6B7280;font-size:12px;">● DRAFT</span>
+      <span class="status-pill pill-review" style="font-size:12px;">● IN_REVIEW</span>
+      <span class="status-pill pill-flagged" style="font-size:12px;">⚠ FLAGGED</span>
+      <span class="status-pill" style="background:#EDE9FE;color:#5B21B6;font-size:12px;">● CALC_COMPLETE</span>
+      <span class="status-pill pill-approved" style="font-size:12px;">✓ APPROVED</span>
+      <span class="status-pill" style="background:#ECFDF5;color:#065F46;font-size:12px;">✓ DELIVERED</span>
+      <span class="status-pill" style="background:#F3F4F6;color:#9CA3AF;font-size:12px;">— CLOSED</span>
+    </div>
+  </div>
+</div>
+
+<script>
+  function showPage(name) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('page-' + name).classList.add('active');
+    event.target.classList.add('active');
+  }
+</script>
+</body>
+</html>

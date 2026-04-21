@@ -1,0 +1,12 @@
+{
+  "name": "calc-service",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "dev": "uvicorn app.main:app --reload --port 8000",
+    "start": "uvicorn app.main:app --host 0.0.0.0 --port 8000",
+    "test": "pytest",
+    "type-check": "python -m py_compile app/main.py",
+    "lint": "python -m compileall app/ -q"
+  }
+}

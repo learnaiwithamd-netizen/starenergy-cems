@@ -1,0 +1,11 @@
+{
+  "extends": "@cems/config/typescript/app.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@cems/types": ["../../packages/types/src/index.ts"],
+      "@cems/ui": ["../../packages/ui/src/index.ts"]
+    }
+  },
+  "include": ["src"]
+}

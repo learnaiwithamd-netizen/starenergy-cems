@@ -1,0 +1,21 @@
+@import 'tailwindcss';
+
+:root {
+  --color-primary: #1b6bdb;
+  --color-primary-foreground: #ffffff;
+  --color-success: #2e7d32;
+  --color-success-foreground: #ffffff;
+  --color-warning: #f5a623;
+  --color-warning-foreground: #1a1a1a;
+  --color-danger: #dc2626;
+  --color-danger-foreground: #ffffff;
+  --color-surface: #ffffff;
+  --color-surface-elevated: #f7f7f8;
+}
+
+body {
+  margin: 0;
+  font-family: Inter, system-ui, sans-serif;
+  background: var(--color-surface);
+  color: #1a1a1a;
+}

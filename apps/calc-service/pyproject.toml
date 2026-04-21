@@ -1,0 +1,9 @@
+[project]
+name = "calc-service"
+version = "0.0.1"
+description = "Star Energy CEMS calculation service (ECM savings, energy baseline, refrigerant)"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
