@@ -1,5 +1,5 @@
 # generated: 2026-04-20
-# last_updated: 2026-04-21
+# last_updated: 2026-04-24
 # project: Star Energy CEMS
 # project_key: NOKEY
 # tracking_system: file-system
@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-20
-last_updated: 2026-04-21
+last_updated: 2026-04-24
 project: Star Energy CEMS
 project_key: NOKEY
 tracking_system: file-system
@@ -46,7 +46,7 @@ development_status:
   # Epic 0: Platform Foundation & Developer Infrastructure
   # ─────────────────────────────────────────────
   epic-0: in-progress
-  0-1-turborepo-monorepo-and-shared-package-scaffold: review
+  0-1-turborepo-monorepo-and-shared-package-scaffold: done
   0-2-azure-infrastructure-provisioning: backlog
   0-3-database-schema-and-rls-foundation: backlog
   0-4-nodejs-api-foundation-and-job-queue-setup: backlog

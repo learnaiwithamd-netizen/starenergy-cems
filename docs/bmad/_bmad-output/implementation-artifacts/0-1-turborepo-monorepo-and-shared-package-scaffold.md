@@ -1,6 +1,6 @@
 # Story 0.1: Turborepo Monorepo & Shared Package Scaffold
 
-Status: review
+Status: done
 
 ## Story
 
