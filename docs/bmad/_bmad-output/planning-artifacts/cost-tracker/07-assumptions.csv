@@ -1,0 +1,23 @@
+ID,Assumption,Current Value,Sensitivity,If Wrong,Source
+A1,Your hourly rate,$20/hour,High,Every $5 change = ~$1150 on project,User-stated 2026-04-25
+A2,MVP Claude work-hours (all stories),~320 hours,High,Every 50 hours over = +$715 your time,Per-story estimates on 02-labor
+A3,2-terminal parallelism efficiency,1.4x,High,"1.2x = +$660; 1.6x = -$410",Based on attention/review bottleneck analysis
+A4,Your effective hours (320/1.4),~230 hours,High,Drives labor cost directly,Derived
+A5,Project duration — MVP build,6 weeks (1.5 months),High,+1 week = +$200 Claude sub + $20 infra,40 hrs/week pace x 5.75 weeks
+A6,Calendar duration includes launch month,2 months total,Medium,Launch month accounts for prod Azure costs,Assumption
+A7,Claude plan,Max 20x ($200/mo),High,Pro = not enough for 2-terminal; Max 5x = slower,2-terminal parallel requires Max 20x headroom
+A8,MVP scope,"Refrigeration only + PDF email delivery",High,Adding HVAC/Lighting/Portal = +150 hours,Aggressively cut
+A9,Developer hired,No,Low,Not needed for MVP; post-launch maybe,LLM-first solo build
+A10,Audits per month at launch,<50 (beta),Medium,100+ forces S2 SQL and B2→P1v2 App Service,Star Energy internal use only
+A11,Azure region,Canada Central,Low,,Locked
+A12,Azure reserved instances,No (pay-as-you-go),Medium,1yr reserved saves 30% once stable,Revisit at 6 months prod
+A13,Security audit pre-MVP-beta,Skipped,High,Blocker for enterprise clients; OK for internal,Internal rollout only at MVP
+A14,Legal lawyer review,Skipped (Termly templates),Medium,Needed before client portal + billing,Defer to V2
+A15,LLM anomaly flagging in MVP,Deferred to V2,Medium,Saves 24 hours + $10/mo prod API,User-accepted cut
+A16,Client portal in MVP,Deferred to V2,Medium,Email delivery replaces it; saves ~60 hours,User-accepted cut
+A17,Python calc service,Consolidated into Node,Low,Simpler deployment; refactor if needed,MVP simplification
+A18,SendGrid plan,Free tier,Low,>100 emails/day = Essentials $20/mo,MVP beta volume
+A19,Weather API,Not needed in MVP,Low,Needed when Energy Baseline calc lands (V2),Baseline calc deferred
+A20,Contingency buffer,15%,Medium,Aggressive projects use 25%,Standard; lean since scope is tight
+A21,Epic 0 spikes completion,Before feature work,High,"If RLS spike fails, whole security model changes",Non-negotiable gate per memory
+A22,Design tokens minimal (Tailwind),Yes,Low,Saves 6-8 hours vs full token system,MVP simplification

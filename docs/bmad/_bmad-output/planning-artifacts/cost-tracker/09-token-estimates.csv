@@ -1,0 +1,20 @@
+Phase,Activity,Model,Input tokens,Output tokens,Cache Read %,Input $/M,Output $/M,Est Cost (USD),Notes
+Dev,Already completed: PRD,Sonnet 4.6,500000,80000,40%,3,15,=(D2*(1-E2)+D2*E2*0.1)*G2/1000000+F2*H2/1000000,Sunk cost — covered by past subs
+Dev,Already completed: Architecture,Sonnet 4.6,600000,100000,50%,3,15,=(D3*(1-E3)+D3*E3*0.1)*G3/1000000+F3*H3/1000000,Sunk
+Dev,Already completed: Epics + stories,Sonnet 4.6,800000,200000,50%,3,15,=(D4*(1-E4)+D4*E4*0.1)*G4/1000000+F4*H4/1000000,Sunk
+Dev,Already completed: UX design,Sonnet 4.6,600000,150000,40%,3,15,=(D5*(1-E5)+D5*E5*0.1)*G5/1000000+F5*H5/1000000,Sunk
+Dev,Per MVP story: impl session (Terminal A or B),Sonnet 4.6,600000,150000,70%,3,15,=(D6*(1-E6)+D6*E6*0.1)*G6/1000000+F6*H6/1000000,
+Dev,Per MVP story: code review,Sonnet 4.6,200000,50000,60%,3,15,=(D7*(1-E7)+D7*E7*0.1)*G7/1000000+F7*H7/1000000,
+Dev,MVP stories remaining (~35 stories × impl+review),,=35*(D6+D7),=35*(F6+F7),65%,3,15,=35*(I6+I7),After deferrals from 02-labor
+Dev,Cross-terminal coordination (2nd terminal premium),Sonnet 4.6,1500000,300000,70%,3,15,=(D9*(1-E9)+D9*E9*0.1)*G9/1000000+F9*H9/1000000,Architectural coherence + integration
+Dev,Debugging + rework buffer,Sonnet 4.6,1500000,300000,50%,3,15,=(D10*(1-E10)+D10*E10*0.1)*G10/1000000+F10*H10/1000000,
+Dev,MVP DEV SUBTOTAL (if pay-as-you-go API),,,,,,,=SUM(I6:I10),Max 20x covers this for $400
+Prod,MVP: NO production LLM calls,Sonnet 4.6,0,0,0%,3,15,=(D12*(1-E12)+D12*E12*0.1)*G12/1000000+F12*H12/1000000,LLM anomaly flagging deferred to V2
+Prod,MVP MONTHLY LLM COST,,,,,,,0,Zero — confirmed
+V2 future,V2: LLM anomaly per audit,Sonnet 4.6,17000,2000,60%,3,15,=(D14*(1-E14)+D14*E14*0.1)*G14/1000000+F14*H14/1000000,Per audit
+V2 future,V2: 200 audits/mo monthly LLM cost,Sonnet 4.6,=D14*200,=F14*200,60%,3,15,=I14*200,"When 8-3 ships"
+,,,,,,,,,
+,Cost verdict,,,,,,,,
+,MVP pay-as-you-go equivalent,,,,,,,=I11,vs $400 Max subscription
+,Max 20x 2-month sub,,,,,,,400,"Fixed price — simpler"
+,Winner,,,,,,,,Max 20x — tighter control + no per-call metering anxiety

@@ -1,0 +1,47 @@
+Section,Metric,Estimated (USD),Actual (USD),Variance,% of Budget,Notes
+PROJECT,Star Energy CEMS — MVP (2-terminal parallel),,,,,Last updated: 2026-04-25
+STRATEGY,Scope: Refrigeration-only MVP + PDF email delivery,,,,,V2 defers client portal + LLM + HVAC/Lighting
+STRATEGY,Pace: 2 Claude Code terminals parallel on Max 20x,,,,,~1.4x speedup vs single terminal
+STRATEGY,Timeline: 6 weeks build + 2 weeks buffer = 2 months calendar,,,,,
+,,,,,,
+LABOR,Claude work-hours (MVP total),320,,=D7-C7,,Sum of all MVP stories on 02-labor
+LABOR,Your effective hours (÷ 1.4 parallel),229,,=D8-C8,,Your real time across both terminals
+LABOR,"Your rate (USD/hr)",20,,,,
+LABOR,TOTAL LABOR COST,=C8*C9,,=D10-C10,=C10/C23,~65% of project
+,,,,,,
+CLAUDE,Claude Max 20x × 2 months,400,,=D12-C12,=C12/C23,Covers both terminals dev-time API usage
+CLAUDE,Production LLM API (MVP),0,,=D13-C13,=C13/C23,No LLM calls in MVP — anomaly flagging deferred
+,,,,,,
+INFRA,Azure dev (2 months minimal),80,,=D15-C15,=C15/C23,Basic SQL + B1 App Service + C0 Redis
+INFRA,Azure prod (launch month only),119,,=D16-C16,=C16/C23,S0 SQL + B2 App Service
+INFRA,Third-party services (2 months),2,,=D17-C17,=C17/C23,Free tiers (SendGrid + managed SSL)
+,,,,,,
+TOOLS,Dev tooling (all free tiers),0,,=D19-C19,=C19/C23,GitHub Free + Figma Free + Sentry Free
+,,,,,,
+ONETIME,Domain,15,,=D21-C21,=C21/C23,
+ONETIME,Legal templates + training docs,100,,=D22-C22,=C22/C23,No lawyer; Termly + Loom
+ONETIME,Contingency on one-time,50,,=D23-C23,=C23/C23,
+,,,,,,
+TOTALS,SUBTOTAL MVP build to launch,=C10+C12+C15+C16+C17+C21+C22+C23,,=D24-C24,=C24/C26,
+TOTALS,Contingency (15%),=C24*0.15,,=D25-C25,=C25/C26,Lean buffer — scope already cut aggressively
+TOTALS,"TOTAL TO LAUNCH MVP (2-terminal)",=C24+C25,,=D26-C26,=C26/C26,
+,,,,,,
+CASH-ONLY,Cash out of pocket (excl. your time),=C12+C15+C16+C17+C21+C22+C23+C25*0.2,,,,Claude + Azure + domain + legal
+,,,,,,
+RUNRATE,Year 1 MVP production run-rate,1920,,=D29-C29,,"From 06-production-runrate × 12 months"
+RUNRATE,"GRAND TOTAL Year 1 (build + run)",=C26+C29,,=D30-C30,,
+,,,,,,
+CATEGORIES,Labor share,=C10/C26,,,,"~70% — your time is the project"
+CATEGORIES,Claude share,=C12/C26,,,,
+CATEGORIES,Infra share,=(C15+C16+C17)/C26,,,,
+CATEGORIES,One-time share,=(C21+C22+C23)/C26,,,,
+,,,,,,
+SCENARIOS,Lean ($20/hr + scope held),=C10+C12+C15+C16+C17+C21+C22+C23,,,,No contingency burned
+SCENARIOS,"Realistic (this dashboard)",=C26,,,,Expected
+SCENARIOS,Slow (part-time 25hr/wk → 10 weeks),=C7*1.7*C9+C12*1.25+C15*1.25+C16+C17*1.25+C21+C22+C23,,,,Carry costs extend + more your-hours
+SCENARIOS,Scope creep (HVAC+Lighting added back),=C7*1.4*C9+C12*1.5+C15*1.5+C16+C17*1.5+C21+C22+C23,,,,+40% labor + 50% carry
+,,,,,,
+NEXT-ACTION,Finalize Epic 0 spikes before forking terminals,,,,,Non-negotiable
+NEXT-ACTION,Confirm Terminal A/B file-system split,,,,,apps/api + packages/shared on A; apps/audit + apps/admin on B
+NEXT-ACTION,Log hours daily on 08-actuals-log,,,,,Variance visibility
+NEXT-ACTION,Review assumptions on 07-assumptions weekly,,,,,Especially A1 rate + A3 parallelism efficiency

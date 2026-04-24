@@ -1,0 +1,13 @@
+Date,Category,Subcategory,Vendor,Description,Amount (USD),Payment Method,Invoice / Receipt #,Linked To,Notes
+2026-04-19,Labor,Planning,Self,PRD draft and architecture review,,TBD,,Epic 0,Enter once tallied
+2026-04-20,Labor,Story execution,Self,Story 0-1 Turborepo scaffold,,TBD,,0-1,
+2026-04-22,Labor,Story execution,Self,Story 0-2 Azure infrastructure provisioning,,TBD,,0-2,
+2026-04-24,Labor,Story execution,Self,Story 0-3 Database schema + RLS (partial),,TBD,,0-3,
+,Subscriptions,Claude Max 20x,Anthropic,Monthly subscription,200,Credit card,,03-subscriptions-tools,
+,Subscriptions,GitHub Team,GitHub,Monthly (1 seat),4,Credit card,,03-subscriptions-tools,
+,Infrastructure,Azure subscription,Microsoft,Canada Central dev environment,,Credit card,,04-infrastructure,First bill ~30 days after 0-2 provisioning
+,One-time,Domain,TBD,starenergy-cems.com (or similar),15,Credit card,,05-one-time,Annual renewal
+,Legal,T&Cs + Privacy,TBD,Template-based draft,,Credit card,,05-one-time,Before client portal launch
+,Compliance,Security audit,TBD,Pre-launch pentest,,Invoice,,05-one-time,Schedule 2-3 weeks before launch
+,,,,,,,,,
+,,,,TOTAL ACTUAL SPEND,=SUM(F2:F11),,,,

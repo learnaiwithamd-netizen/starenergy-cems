@@ -1,0 +1,16 @@
+Category,Item,Est Cost (USD),Actual,Variance,Required?,Notes
+Branding,Logo + brand kit,0,,=D2-C2,Skip,Use text logo + existing Star Energy branding
+Branding,Illustrations / icons,0,,=D3-C3,Skip,Free Heroicons or Lucide
+Legal,T&Cs + Privacy (Termly template),50,,=D4-C4,Recommended,PIPEDA basics; no lawyer for MVP
+Legal,Lawyer review,0,,=D5-C5,Skip,Defer to post-MVP when real clients sign
+Compliance,Security audit / pentest,0,,=D6-C6,Skip,Defer to pre-client-rollout. DIY security checklist for MVP beta
+Compliance,SOC2 readiness,0,,=D7-C7,Skip,V2+
+Domain,Primary domain (.com),15,,=D8-C8,Required,Annual registration
+Domain,Domain privacy,0,,=D9-C9,Optional,Many registrars include free
+SSL,Managed SSL,0,,=D10-C10,Required,Azure App Service Managed Certificate (free)
+Setup,Backup / DR configuration,0,,=D11-C11,Required,Azure SQL auto-backup built-in (7 days free)
+Training,Auditor onboarding doc + short video,50,,=D12-C12,Recommended,Loom free tier + written doc
+Training,Client rollout walkthrough,0,,=D13-C13,Skip,Defer until first client signs
+Launch,Marketing / landing page,0,,=D14-C14,Skip,Not needed for internal tool MVP
+Contingency,Unknown unknowns,50,,=D15-C15,Recommended,15% of one-time
+,,MVP ONE-TIME TOTAL,=SUM(C2:C15),=SUM(D2:D15),=SUM(E2:E15),,

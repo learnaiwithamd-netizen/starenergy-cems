@@ -2,6 +2,36 @@
 
 Items surfaced during code review that are intentionally deferred (not bugs in the story under review — either by-design, future-story scope, or optimisation).
 
+## Deferred from: code review of 0-3-database-schema-and-rls-foundation (2026-04-25)
+
+**Story 0.4 must address these before real auth traffic lands:**
+
+- **RLS raw-query bypass** [packages/db/src/middleware/rls.ts] — `$extends` only hooks `$allModels.$allOperations`; `$queryRaw`/`$executeRaw` skip the middleware. Story 0.4 establishes per-request connection-affinity via interactive `$transaction` or a `withRlsTransaction(ctx, fn)` helper that pins the connection.
+- **Pool-interleaving race** [rls.ts:53-57] — 4 `sp_set_session_context` EXEC calls + 1 query = 5 round-trips; Prisma's pool can hand each a different connection. SESSION_CONTEXT lands on one connection, query on another → RLS predicate sees empty context. Same fix as above.
+- **`$transaction` batch form skips middleware** [rls.ts] — Interactive `$transaction(async (tx) => ...)` passes raw `tx`. Batch form `$transaction([p1, p2])` executes on potentially a different connection. Address with `withRlsTransaction` helper in Story 0.4.
+- **RLS middleware performance (4 round-trips/query)** [rls.ts:53-56] — Batch into a single `security.sp_set_rls` stored procedure after Story 0.4 lands connection-affinity.
+
+**Lower priority, story-specific:**
+
+- `appendLog` JSON.stringify throws on BigInt/circular [apps/api/src/repositories/audit-log.repo.ts:35] — first real callers in Story 7.3 (state machine); add safe serializer then.
+- `appendLog` no payload size cap (NVARCHAR(MAX) = 2GB) — Story 7.3.
+- `appendLog` doesn't accept a `tx` client — Story 7.3.
+- `assignedStoreIds` stored as string JSON blob, no DB validation — Story 1.1 (auth) tightens.
+- Empty-string element in `assignedStoreIds` bypasses CLIENT filter (`z.array(z.string().min(1))`) — Story 1.1.
+- `EXEC()` sub-batches not wrapped in migration transaction — hardening story; add `IF NOT EXISTS` idempotent guards.
+- `WITH SCHEMABINDING` locks future column additions to `audits`/`users` — documented pattern; future schema migrations must DROP+RECREATE policy + function.
+- ADMIN bypass allows typo'd `tenant_id` on INSERT — later story adds `tenants` reference table with FK check.
+- Concurrent vitest runs clobber each other's seed data [tests/rls.integration.test.ts] — with integration test wiring.
+- Integration test mutates shared state without `beforeEach` — with integration test wiring.
+- FK `ON UPDATE CASCADE` on auto-gen FKs (PKs are cuids; not exercised today) — future schema refinement.
+- `auditorUserId` NoAction orphans sessions on user delete — Story 1.3 implements soft-delete.
+- `Proxy` breaks `instanceof`/`JSON.stringify`/`util.inspect` [packages/db/src/index.ts] — cosmetic; revisit post-Story 0.4.
+- `init-dev-db.sh` brittle grep/retry/sqlcmd-path — Story 0.6 CI hardening.
+- Redundant indexes (`idx_users_tenant_id` covered by `uq_users_tenant_email`) — perf tuning pass.
+- Filtered index for `audit_log.audit_id` (mostly null) — Story 7.3 perf.
+- `tenant_id NVARCHAR(1000)` vs Dev Notes `NVARCHAR(50)` drift — negligible; align in future migration.
+- `prisma.config.ts` silent on missing DATABASE_URL — Prisma CLI's own error is acceptable.
+
 ## Deferred from: code review of 0-2-azure-infrastructure-provisioning (2026-04-24)
 
 - **SAS token no stored access policy** [apps/api/src/lib/azure-blob.ts] — defense-in-depth gap; revisit when user-delegation SAS is introduced post-auth wiring

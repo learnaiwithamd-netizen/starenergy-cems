@@ -1,0 +1,23 @@
+Category,Line Item,Monthly (USD),Annual (USD),Notes
+Infrastructure,Azure SQL (start S0 → S1 after beta),15,=C2*12,Upgrade when >100 audits/mo; S1 = $30
+Infrastructure,Azure App Service B2 (combined API + PDF),55,=C3*12,Split into P1v2 × 2 only under memory pressure
+Infrastructure,Azure Static Web Apps x2 Standard,18,=C4*12,Custom domain support
+Infrastructure,Azure Blob Storage (growing),10,=C5*12,Hot → Cool lifecycle policy after 90d
+Infrastructure,Azure Cache for Redis (C0),17,=C6*12,Upgrade to C1 if queue backs up
+Infrastructure,Application Insights,10,=C7*12,Low traffic initially
+Infrastructure,Key Vault + Monitor + bandwidth,15,=C8*12,Aggregated
+Infrastructure,INFRA SUBTOTAL,=SUM(C2:C8),=SUM(D2:D8),
+3rd-party,SendGrid Essentials (post-beta),20,=C10*12,Upgrade from free when >100/day
+3rd-party,Domain + managed SSL,1,=C11*12,$15/yr amortized + free Azure SSL
+3rd-party,Sentry Developer (free OR Team),0,=C12*12,Free until >5k errors/mo
+Monitoring,Backup retention,5,=C13*12,Azure SQL 7-day PITR included; longer retention extra
+,OPS SUBTOTAL,=SUM(C10:C13),=SUM(D10:D13),
+Contingency,10% buffer,=SUM(C9:C14)*0.10,=B15*12,For tier upgrades + growth
+,MVP MONTHLY RUN-RATE,=C9+C14+C15,=D9+D14+D15,
+,,,,
+,Not in MVP ops (V2 adds),,,
+V2 future,Python calc service (separate plan),75,=C19*12,When 8-2 baseline calc ships
+V2 future,Claude API — LLM anomaly,10,=C20*12,When 8-3 ships — scales with audit volume
+V2 future,OpenWeatherMap Standard,40,=C21*12,When baseline calc needs CDD/HDD
+V2 future,Client portal Static Web App,9,=C22*12,When Epic 10 ships
+V2 future,V2 MONTHLY DELTA,=SUM(C19:C22),=SUM(D19:D22),Add to MVP run-rate once V2 ships

@@ -1,0 +1,23 @@
+services:
+  sql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: cems-sql
+    platform: linux/amd64
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${CEMS_SQL_SA_PASSWORD:?CEMS_SQL_SA_PASSWORD must be set — see .env.example}
+      MSSQL_PID: "Developer"
+    ports:
+      # Bind to loopback only — dev DB is never LAN-accessible.
+      - "127.0.0.1:1433:1433"
+    volumes:
+      - cems-sql-data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U SA -P \"$$MSSQL_SA_PASSWORD\" -C -Q \"SELECT 1\" || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+volumes:
+  cems-sql-data:
