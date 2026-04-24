@@ -1,6 +1,6 @@
 # Story 0.3: Database Schema & RLS Foundation
 
-Status: review
+Status: done
 
 ## Story
 
