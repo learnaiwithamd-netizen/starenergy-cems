@@ -1,0 +1,10 @@
+Category,Item,Plan,Monthly Cost,Months in Use,Est Total,Actual Total,Variance,Vendor,Required?,Notes
+Claude,Claude Code Max 20x,Max 20x,200,2,=D2*E2,,=G2-F2,Anthropic,Required,Essential for 2-terminal parallel + tight MVP timeline
+Source Control,GitHub Free,Free,0,2,=D3*E3,,=G3-F3,GitHub,Required,Private repos free now — no paid tier needed for MVP
+Design,Figma Free,Free,0,2,=D4*E4,,=G4-F4,Figma,Optional,UX design done; if need edits use free tier
+Password Mgmt,1Password (optional),Individual,3,2,=D5*E5,,=G5-F5,1Password,Optional,Azure creds + API keys — or use macOS keychain free
+Error Tracking,Sentry Developer,Free,0,2,=D6*E6,,=G6-F6,Sentry,Recommended,Free tier 5k errors/mo — enough for MVP beta
+Project Mgmt,Notion / Linear,Free,0,2,=D7*E7,,=G7-F7,Free tool,Optional,Story tracking already in filesystem
+Diagrams,Excalidraw,Free,0,2,=D8*E8,,=G8-F8,Excalidraw,Optional,Free forever
+,,MVP SUBSCRIPTION TOTAL (required only),,,=F2,,=H9,,,"Claude Max 20x × 2 months = $400"
+,,If 1Password added,,,=F2+F5,,,,,Adds ~$6 over 2 months

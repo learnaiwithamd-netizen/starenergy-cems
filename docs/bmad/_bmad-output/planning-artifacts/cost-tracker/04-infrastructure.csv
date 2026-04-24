@@ -1,0 +1,25 @@
+Environment,Service,Tier / SKU,Monthly Cost (USD),Months in Use,Total (USD),Actual,Variance,Notes
+Dev,Azure SQL Database,Basic (5 DTU),5,2,=D2*E2,,=G2-F2,Sufficient for dev schema + test data
+Dev,Azure App Service (API + PDF combined),B1 Linux,13,2,=D3*E3,,=G3-F3,Single plan in dev to save — separate only in prod
+Dev,Azure Static Web Apps x2,Free tier,0,2,=D4*E4,,=G4-F4,Audit app + admin — Free tier sufficient for dev
+Dev,Azure Blob Storage,Hot tier <5GB,2,2,=D5*E5,,=G5-F5,Few test photos
+Dev,Azure Cache for Redis,Basic C0 (250MB),17,2,=D6*E6,,=G6-F6,BullMQ queue
+Dev,Application Insights,Free tier,0,2,=D7*E7,,=G7-F7,Free up to 1GB ingest
+Dev,Azure Key Vault,Standard,3,2,=D8*E8,,=G8-F8,
+Dev,DEV SUBTOTAL (2 months),,=SUM(D2:D8),,=SUM(F2:F8),=SUM(G2:G8),=H9,
+Prod,Azure SQL Database,S0 (10 DTU),15,1,=D10*E10,,=G10-F10,Month 1 only — upgrade to S2 when client load lands
+Prod,Azure App Service (API),B2 Linux,55,1,=D11*E11,,=G11-F11,Single B2 plan holds API + PDF for MVP
+Prod,Azure App Service (PDF worker),Shared w/ API,0,1,=D12*E12,,=G12-F12,Separate only if memory issues
+Prod,Azure Static Web Apps x2,Standard,9,1,=D13*E13,,=G13-F13,Needs custom domain → Standard tier
+Prod,Azure Blob Storage,Hot + 10GB initial,5,1,=D14*E14,,=G14-F14,
+Prod,Azure Cache for Redis,Basic C0,17,1,=D15*E15,,=G15-F15,Can stay on C0 for MVP; upgrade when queue backs up
+Prod,Application Insights,Pay-as-you-go,10,1,=D16*E16,,=G16-F16,Low traffic at MVP
+Prod,Azure Key Vault,Standard,3,1,=D17*E17,,=G17-F17,
+Prod,Bandwidth / Egress,Canada Central,5,1,=D18*E18,,=G18-F18,MVP traffic minimal
+Prod,PROD SUBTOTAL (launch month only),,=SUM(D10:D18),,=SUM(F10:F18),=SUM(G10:G18),=H19,
+3rd-party,SendGrid,Free tier (100/day),0,2,=D20*E20,,=G20-F20,Enough for MVP beta
+3rd-party,Weather API,NOT NEEDED (deferred),0,2,=D21*E21,,=G21-F21,Weather calc deferred to V2
+3rd-party,Domain (amortized /mo),$15/yr,1,2,=D22*E22,,=G22-F22,"One-time — see 05-one-time"
+3rd-party,Managed SSL,Azure managed (free),0,2,=D23*E23,,=G23-F23,
+3rd-party,3RD-PARTY SUBTOTAL,,=SUM(D20:D23),,=SUM(F20:F23),=SUM(G20:G23),=H24,
+,,GRAND TOTAL (MVP build period),,,=F9+F19+F24,=G9+G19+G24,=H25,"Dev 2mo + Prod launch month + 3rd-party 2mo"

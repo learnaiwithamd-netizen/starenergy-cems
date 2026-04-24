@@ -290,6 +290,9 @@ importers:
       '@types/node':
         specifier: ^22.10.5
         version: 22.19.17
+      dotenv:
+        specifier: ^16.4.7
+        version: 16.6.1
       prisma:
         specifier: 7.5.0
         version: 7.5.0(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(typescript@5.9.3)

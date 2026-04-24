@@ -2,8 +2,9 @@ import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
   test: {
-    // Integration tests live in ./tests/ and are gated by RUN_INTEGRATION=1.
-    // Default `pnpm test` only runs unit tests under src/.
-    include: ['src/**/*.{test,spec}.ts'],
+    // Unit tests under src/ run in every invocation.
+    // Integration tests under tests/ self-gate on RUN_INTEGRATION=1 via describe.skipIf(),
+    // so they're included here but harmless when the env var isn't set.
+    include: ['src/**/*.{test,spec}.ts', 'tests/**/*.{test,spec}.ts'],
   },
 })

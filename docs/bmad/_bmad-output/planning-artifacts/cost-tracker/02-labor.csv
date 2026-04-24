@@ -1,0 +1,66 @@
+Epic,Story ID,Story Name,Terminal,Claude Work Hrs,Your Rate,Est Cost (USD),Actual Hrs,Actual Cost (USD),Variance Hrs,Variance Cost,Status,Notes
+Epic 0,0-1,Turborepo monorepo + shared package scaffold,Done,0,20,=E2*F2,,=H2*F2,=H2-E2,=I2-G2,done,Already shipped
+Epic 0,0-2,Azure infrastructure provisioning,Done,0,20,=E3*F3,,=H3*F3,=H3-E3,=I3-G3,done,Already shipped
+Epic 0,0-3,Database schema + RLS foundation,Seq (A),12,20,=E4*F4,,=H4*F4,=H4-E4,=I4-G4,in-progress,Sequential blocker — A alone
+Epic 0,0-4,Node.js API foundation + BullMQ,A,12,20,=E5*F5,,=H5*F5,=H5-E5,=I5-G5,backlog,
+Epic 0,0-5,Python calculation service scaffold,DEFERRED,0,20,=E6*F6,,=H6*F6,=H6-E6,=I6-G6,deferred,Consolidate calcs into Node for MVP
+Epic 0,0-6,CI/CD pipeline,A,6,20,=E7*F7,,=H7*F7,=H7-E7,=I7-G7,backlog,Basic GitHub Actions
+Epic 0,0-7,Design tokens + component library (minimal),B,4,20,=E8*F8,,=H8*F8,=H8-E8,=I8-G8,backlog,Tailwind defaults + 3-4 components
+Epic 0,0-8,Accessibility + testing infrastructure,DEFERRED,0,20,=E9*F9,,=H9*F9,=H9-E9,=I9-G9,deferred,V2 polish
+Epic 1,1-1,Login API + JWT issuance,A,8,20,=E10*F10,,=H10*F10,=H10-E10,=I10-G10,backlog,
+Epic 1,1-1b,Login UI screen,B,6,20,=E11*F11,,=H11*F11,=H11-E11,=I11-G11,backlog,
+Epic 1,1-2,Role-based access — API guards,A,4,20,=E12*F12,,=H12*F12,=H12-E12,=I12-G12,backlog,Auditor + admin roles only
+Epic 1,1-2b,Route guards — frontend,B,4,20,=E13*F13,,=H13*F13,=H13-E13,=I13-G13,backlog,
+Epic 1,1-3,Admin user management — auditors,A+B,8,20,=E14*F14,,=H14*F14,=H14-E14,=I14-G14,backlog,Simple CRUD + list
+Epic 1,1-4,Admin client management,DEFERRED,0,20,=E15*F15,,=H15*F15,=H15-E15,=I15-G15,deferred,Use email delivery; no client accounts in MVP
+Epic 2,2-1,Store reference API,A,6,20,=E16*F16,,=H16*F16,=H16-E16,=I16-G16,backlog,
+Epic 2,2-1b,Store selector screen,B,6,20,=E17*F17,,=H17*F17,=H17-E17,=I17-G17,backlog,
+Epic 2,2-2,Auto-fill + draft creation API,A,8,20,=E18*F18,,=H18*F18,=H18-E18,=I18-G18,backlog,
+Epic 2,2-2b,Auto-fill UI,B,4,20,=E19*F19,,=H19*F19,=H19-E19,=I19-G19,backlog,
+Epic 2,2-3,Auto-save API endpoints,A,6,20,=E20*F20,,=H20*F20,=H20-E20,=I20-G20,backlog,
+Epic 2,2-3b,Auto-save frontend hook,B,4,20,=E21*F21,,=H21*F21,=H21-E21,=I21-G21,backlog,
+Epic 2,2-4,Section overview + nav shell,B,8,20,=E22*F22,,=H22*F22,=H22-E22,=I22-G22,backlog,
+Epic 3,3-1,Audit breadcrumb + machine room screen,B,8,20,=E23*F23,,=H23*F23,=H23-E23,=I23-G23,backlog,
+Epic 3,3-2,Rack entry + duplication,DEFERRED,0,20,=E24*F24,,=H24*F24,=H24-E24,=I24-G24,deferred,V2 — single rack in MVP
+Epic 3,3-3a,Compressor + regression API,A,10,20,=E25*F25,,=H25*F25,=H25-E25,=I25-G25,backlog,Regression DB lookup
+Epic 3,3-3b,Compressor screens UI,B,12,20,=E26*F26,,=H26*F26,=H26-E26,=I26-G26,backlog,
+Epic 3,3-4,Condenser + display case UI + APIs,A+B,14,20,=E27*F27,,=H27*F27,=H27-E27,=I27-G27,backlog,Walk-in coolers deferred
+Epic 3,3-5,Controller systems,DEFERRED,0,20,=E28*F28,,=H28*F28,=H28-E28,=I28-G28,deferred,V2
+Epic 3,3-6,Multi-auditor locking,DEFERRED,0,20,=E29*F29,,=H29*F29,=H29-E29,=I29-G29,deferred,Single-auditor MVP
+Epic 4,4-1,Camera + PhotoCaptureField component,B,12,20,=E30*F30,,=H30*F30,=H30-E30,=I30-G30,backlog,
+Epic 4,4-2,Auto-tag + Azure Blob upload API,A,10,20,=E31*F31,,=H31*F31,=H31-E31,=I31-G31,backlog,
+Epic 4,4-3,Additional photos + comments,B,6,20,=E32*F32,,=H32*F32,=H32-E32,=I32-G32,backlog,
+Epic 4,4-4,Upload queue retry,DEFERRED,0,20,=E33*F33,,=H33*F33,=H33-E33,=I33-G33,deferred,Simple upload fail-loud in MVP
+Epic 5,5-1,General section screens (minimal),B,6,20,=E34*F34,,=H34*F34,=H34-E34,=I34-G34,backlog,
+Epic 5,5-2,HVAC section,DEFERRED,0,20,=E35*F35,,=H35*F35,=H35-E35,=I35-G35,deferred,V2
+Epic 5,5-3,Lighting + envelope,DEFERRED,0,20,=E36*F36,,=H36*F36,=H36-E36,=I36-G36,deferred,V2
+Epic 5,5-4,Review + submit screen,B,8,20,=E37*F37,,=H37*F37,=H37-E37,=I37-G37,backlog,
+Epic 5,5-5,Submission confirmation + email,A+B,6,20,=E38*F38,,=H38*F38,=H38-E38,=I38-G38,backlog,SendGrid free tier
+Epic 6,6-1,Store reference seed script,A,3,20,=E39*F39,,=H39*F39,=H39-E39,=I39-G39,backlog,SQL seed — no UI
+Epic 6,6-2,Compressor regression seed script,A,3,20,=E40*F40,,=H40*F40,=H40-E40,=I40-G40,backlog,SQL seed — no UI
+Epic 6,6-3,Weather data retrieval,DEFERRED,0,20,=E41*F41,,=H41*F41,=H41-E41,=I41-G41,deferred,Not needed without baseline calc in MVP
+Epic 7,7-1,Audit queue API + list UI (simple),A+B,6,20,=E42*F42,,=H42*F42,=H42-E42,=I42-G42,backlog,No status filters; simple list
+Epic 7,7-2,SLA timer + detail sheet,DEFERRED,0,20,=E43*F43,,=H43*F43,=H43-E43,=I43-G43,deferred,V2
+Epic 7,7-3,State machine transitions,DEFERRED,0,20,=E44*F44,,=H44*F44,=H44-E44,=I44-G44,deferred,Simple SUBMITTED→PUBLISHED in MVP
+Epic 7,7-4,Photo lock enforcement,DEFERRED,0,20,=E45*F45,,=H45*F45,=H45-E45,=I45-G45,deferred,V2
+Epic 8,8-1,ECM refrigeration calc,A,24,20,=E46*F46,,=H46*F46,=H46-E46,=I46-G46,backlog,Core calc — Node not Python for MVP
+Epic 8,8-2,Energy baseline regression,DEFERRED,0,20,=E47*F47,,=H47*F47,=H47-E47,=I47-G47,deferred,V2
+Epic 8,8-3,LLM anomaly flagging,DEFERRED,0,20,=E48*F48,,=H48*F48,=H48-E48,=I48-G48,deferred,V2 — biggest deferred feature
+Epic 8,8-4,Admin flag override,DEFERRED,0,20,=E49*F49,,=H49*F49,=H49-E49,=I49-G49,deferred,Needs 8-3 first
+Epic 8,8-5,Calc inputs/outputs view,B,6,20,=E50*F50,,=H50*F50,=H50-E50,=I50-G50,backlog,Basic read-only view
+Epic 9,9-1,Puppeteer PDF renderer,A,12,20,=E51*F51,,=H51*F51,=H51-E51,=I51-G51,backlog,Self-contained HTML bundle
+Epic 9,9-2a,Admin approve + publish API,A,4,20,=E52*F52,,=H52*F52,=H52-E52,=I52-G52,backlog,
+Epic 9,9-2b,Admin approve UI,B,4,20,=E53*F53,,=H53*F53,=H53-E53,=I53-G53,backlog,
+Epic 9,9-3,Report immutability / versioning,DEFERRED,0,20,=E54*F54,,=H54*F54,=H54-E54,=I54-G54,deferred,V2
+Epic 9,9-4,Client email on publish,A,4,20,=E55*F55,,=H55*F55,=H55-E55,=I55-G55,backlog,SendGrid
+Epic 9,9-5,Report regeneration,DEFERRED,0,20,=E56*F56,,=H56*F56,=H56-E56,=I56-G56,deferred,V2
+Epic 10,10-1,Client portal dashboard,DEFERRED,0,20,=E57*F57,,=H57*F57,=H57-E57,=I57-G57,deferred,Email PDF instead
+Epic 10,10-2,Client portal report view,DEFERRED,0,20,=E58*F58,,=H58*F58,=H58-E58,=I58-G58,deferred,Email PDF instead
+Epic 10,10-3,Client portal ECM summary,DEFERRED,0,20,=E59*F59,,=H59*F59,=H59-E59,=I59-G59,deferred,V2
+Epic 10,10-4,Client portal notifications,DEFERRED,0,20,=E60*F60,,=H60*F60,=H60-E60,=I60-G60,deferred,V2
+,,MVP IN-SCOPE CLAUDE WORK HOURS,,=SUM(E2:E60),,=SUM(G2:G60),=SUM(H2:H60),=SUM(I2:I60),=SUM(J2:J60),=SUM(K2:K60),,
+,,Terminal A subtotal,,=SUMIFS(E2:E60,D2:D60,"A")+SUMIFS(E2:E60,D2:D60,"Seq (A)")+SUMIFS(E2:E60,D2:D60,"A+B")/2,,,,,,,,Sequential work on A
+,,Terminal B subtotal,,=SUMIFS(E2:E60,D2:D60,"B")+SUMIFS(E2:E60,D2:D60,"A+B")/2,,,,,,,,Sequential work on B
+,,Calendar time (slower terminal),,=MAX(E62,E63),,,,,,,,Critical path
+,,YOUR EFFECTIVE HOURS (2-terminal efficiency 1.4x),,=E61/1.4,20,=E65*F65,,=H65*F65,=H65-E65,=I65-G65,,"THIS IS YOUR ACTUAL TIME SPENT"
+,,"MVP LABOR COST @ $20/hr",,,,=G65,=I65,=K65,,,,Biggest line item

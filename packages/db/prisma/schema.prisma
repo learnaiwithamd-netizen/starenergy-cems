@@ -60,6 +60,7 @@ model User {
 
 model UserSession {
   id                String    @id @default(cuid())
+  tenantId          String    @map("tenant_id")
   userId            String    @map("user_id")
   refreshTokenHash  String    @unique(map: "uq_sessions_refresh_hash") @map("refresh_token_hash")
   expiresAt         DateTime  @map("expires_at")
@@ -68,6 +69,7 @@ model UserSession {
 
   user User @relation(fields: [userId], references: [id], onDelete: NoAction, map: "fk_sessions_user")
 
+  @@index([tenantId], map: "idx_sessions_tenant_id")
   @@index([userId], map: "idx_sessions_user_id")
   @@map("user_sessions")
 }

@@ -1,3 +1,7 @@
+// rootDir is omitted intentionally. With @cems/db + @cems/types path-aliased to upstream
+// workspace sources, tsc -b tries to compile files outside apps/api/src/. Without rootDir,
+// tsc still type-checks correctly and emits under outDir with the expected layout. Revisit
+// if api is ever published as a standalone artefact.
 {
   "extends": "@cems/config/typescript/server.json",
   "compilerOptions": {

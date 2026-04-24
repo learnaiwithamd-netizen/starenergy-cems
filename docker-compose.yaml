@@ -5,10 +5,11 @@ services:
     platform: linux/amd64
     environment:
       ACCEPT_EULA: "Y"
-      MSSQL_SA_PASSWORD: "Your_strong_pw_123"
+      MSSQL_SA_PASSWORD: ${CEMS_SQL_SA_PASSWORD:?CEMS_SQL_SA_PASSWORD must be set — see .env.example}
       MSSQL_PID: "Developer"
     ports:
-      - "1433:1433"
+      # Bind to loopback only — dev DB is never LAN-accessible.
+      - "127.0.0.1:1433:1433"
     volumes:
       - cems-sql-data:/var/opt/mssql
     healthcheck:

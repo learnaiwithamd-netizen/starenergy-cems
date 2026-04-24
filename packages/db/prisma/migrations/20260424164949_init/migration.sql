@@ -20,6 +20,7 @@ CREATE TABLE [dbo].[users] (
 -- CreateTable
 CREATE TABLE [dbo].[user_sessions] (
     [id] NVARCHAR(1000) NOT NULL,
+    [tenant_id] NVARCHAR(1000) NOT NULL,
     [user_id] NVARCHAR(1000) NOT NULL,
     [refresh_token_hash] NVARCHAR(1000) NOT NULL,
     [expires_at] DATETIME2 NOT NULL,
@@ -224,6 +225,9 @@ CREATE TABLE [dbo].[controllers] (
 
 -- CreateIndex
 CREATE NONCLUSTERED INDEX [idx_users_tenant_id] ON [dbo].[users]([tenant_id]);
+
+-- CreateIndex
+CREATE NONCLUSTERED INDEX [idx_sessions_tenant_id] ON [dbo].[user_sessions]([tenant_id]);
 
 -- CreateIndex
 CREATE NONCLUSTERED INDEX [idx_sessions_user_id] ON [dbo].[user_sessions]([user_id]);
