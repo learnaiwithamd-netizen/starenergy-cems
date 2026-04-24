@@ -47,7 +47,7 @@ development_status:
   # ─────────────────────────────────────────────
   epic-0: in-progress
   0-1-turborepo-monorepo-and-shared-package-scaffold: done
-  0-2-azure-infrastructure-provisioning: backlog
+  0-2-azure-infrastructure-provisioning: ready-for-dev
   0-3-database-schema-and-rls-foundation: backlog
   0-4-nodejs-api-foundation-and-job-queue-setup: backlog
   0-5-python-calculation-service-scaffold: backlog
