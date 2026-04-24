@@ -37,15 +37,33 @@ param containerAppsConfig object = {
   maxReplicas: 1
 }
 
+@description('VNet /16 prefix — MUST be non-overlapping across dev/staging/prod for peering')
+param vnetAddressPrefix string
+
+@description('Apps subnet /24 prefix')
+param appsSubnetPrefix string
+
+@description('Containers subnet /23 prefix')
+param containersSubnetPrefix string
+
+@description('Data subnet /24 prefix (reserved for future private endpoints)')
+param dataSubnetPrefix string
+
 @description('Static Web Apps region (fallback eastus2 due to SWA availability)')
 param staticWebAppsLocation string = 'eastus2'
+
+@description('Static Web Apps hostnames for Storage CORS allowlist (empty on first deploy; populate after SWAs materialise)')
+param swaCorsOrigins array = []
 
 @description('Application Insights retention days')
 param appInsightsRetentionDays int = 30
 
-@description('SQL admin password seeded into Key Vault — rotate after first deploy')
+@description('SQL admin password — supplied via CEMS_SQL_ADMIN_PASSWORD env var by deploy.sh')
 @secure()
 param sqlAdminPassword string
+
+@description('Enable "Allow Azure services" firewall rule on SQL. Dev only — disable in staging/prod.')
+param enableSqlAllowAzureServices bool = false
 
 @description('Dev-only firewall IP allowlist; empty in staging/prod')
 param sqlFirewallIpRanges array = []
@@ -53,7 +71,7 @@ param sqlFirewallIpRanges array = []
 @description('Enable SQL threat detection (staging + prod only)')
 param enableSqlThreatDetection bool = false
 
-@description('Enable Key Vault purge protection (staging + prod only)')
+@description('Enable Key Vault purge protection (staging + prod only). Irreversible once true.')
 param enableKeyVaultPurgeProtection bool = false
 
 @description('Key Vault soft-delete retention days')
@@ -88,6 +106,10 @@ module network 'modules/network.bicep' = {
     env: env
     location: location
     tags: tags
+    vnetAddressPrefix: vnetAddressPrefix
+    appsSubnetPrefix: appsSubnetPrefix
+    containersSubnetPrefix: containersSubnetPrefix
+    dataSubnetPrefix: dataSubnetPrefix
   }
 }
 
@@ -115,6 +137,7 @@ module sql 'modules/sql.bicep' = {
     sqlTier: sqlSku.tier
     adminPassword: sqlAdminPassword
     enableThreatDetection: enableSqlThreatDetection
+    allowAzureServicesFirewall: enableSqlAllowAzureServices
     allowedIpRanges: sqlFirewallIpRanges
   }
 }
@@ -137,6 +160,7 @@ module storage 'modules/storage.bicep' = {
     env: env
     location: location
     tags: tags
+    corsAllowedOrigins: swaCorsOrigins
   }
 }
 
@@ -151,6 +175,51 @@ module appInsights 'modules/appinsights.bicep' = {
   }
 }
 
+// ─── Secret population: write real connection strings into Key Vault ──────
+// These MUST complete before App Service tries to resolve its Key Vault references.
+
+module databaseUrlSecret 'modules/kvSecret.bicep' = {
+  scope: rg
+  name: 'secret-database-url-${env}'
+  params: {
+    keyVaultName: keyVault.outputs.keyVaultName
+    secretName: 'database-url'
+    secretValue: 'sqlserver://${sql.outputs.sqlServerFqdn}:1433;database=${sql.outputs.sqlDatabaseName};user=${sql.outputs.sqlAdminLogin};password=${sqlAdminPassword};encrypt=true;trustServerCertificate=false'
+  }
+}
+
+module storageConnSecret 'modules/kvSecret.bicep' = {
+  scope: rg
+  name: 'secret-storage-conn-${env}'
+  params: {
+    keyVaultName: keyVault.outputs.keyVaultName
+    secretName: 'azure-storage-connection-string'
+    secretValue: storage.outputs.connectionString
+  }
+}
+
+module redisUrlSecret 'modules/kvSecret.bicep' = {
+  scope: rg
+  name: 'secret-redis-url-${env}'
+  params: {
+    keyVaultName: keyVault.outputs.keyVaultName
+    secretName: 'redis-url'
+    secretValue: redis.outputs.connectionString
+  }
+}
+
+module appInsightsConnSecret 'modules/kvSecret.bicep' = {
+  scope: rg
+  name: 'secret-appi-conn-${env}'
+  params: {
+    keyVaultName: keyVault.outputs.keyVaultName
+    secretName: 'appinsights-connection-string'
+    secretValue: appInsights.outputs.appInsightsConnectionString
+  }
+}
+
+// ─── Compute layer ────────────────────────────────────────────────────────
+
 module appService 'modules/appservice.bicep' = {
   scope: rg
   name: 'app-${env}'
@@ -160,9 +229,14 @@ module appService 'modules/appservice.bicep' = {
     tags: tags
     planSku: appServicePlanSku
     keyVaultName: keyVault.outputs.keyVaultName
-    appInsightsConnectionString: appInsights.outputs.appInsightsConnectionString
     appsSubnetId: network.outputs.appsSubnetId
   }
+  dependsOn: [
+    databaseUrlSecret
+    storageConnSecret
+    redisUrlSecret
+    appInsightsConnSecret
+  ]
 }
 
 module staticWebApps 'modules/staticwebapps.bicep' = {
@@ -191,6 +265,11 @@ module containerApps 'modules/containerapps.bicep' = {
   }
 }
 
+// ─── RBAC: grant managed identities Key Vault Secrets User ────────────────
+// RBAC propagation is eventually consistent (30-120s). deploy.sh restarts
+// App Service after deployment so it re-resolves Key Vault references once
+// propagation completes.
+
 module apiKvAccess 'modules/kvRoleAssignment.bicep' = {
   scope: rg
   name: 'kv-rbac-api-${env}'
@@ -217,8 +296,8 @@ output sqlDatabaseName string = sql.outputs.sqlDatabaseName
 output redisHostname string = redis.outputs.redisHostname
 output storageAccountName string = storage.outputs.storageAccountName
 output apiHostname string = appService.outputs.apiAppServiceDefaultHostname
+output apiAppServiceName string = appService.outputs.apiAppServiceName
 output auditAppHostname string = staticWebApps.outputs.auditAppHostname
 output adminAppHostname string = staticWebApps.outputs.adminAppHostname
 output clientPortalHostname string = staticWebApps.outputs.clientPortalHostname
 output calcServiceFqdn string = containerApps.outputs.calcServiceFqdn
-output appInsightsConnectionString string = appInsights.outputs.appInsightsConnectionString

@@ -1,4 +1,4 @@
-// keyvault.bicep — Azure Key Vault with RBAC authorisation and seeded secret placeholders
+// keyvault.bicep — Azure Key Vault with RBAC authorisation
 // Architecture mandate: enableRbacAuthorization: true (not access policies)
 
 @description('Environment name (dev | staging | prod)')
@@ -14,7 +14,7 @@ param tags object
 @description('Azure tenant id')
 param tenantId string
 
-@description('Whether to enable purge protection (staging/prod only)')
+@description('Whether to enable purge protection (staging/prod only). Irreversible once true — Azure does not allow turning this off.')
 param enablePurgeProtection bool = false
 
 @description('Soft delete retention in days')
@@ -22,20 +22,29 @@ param enablePurgeProtection bool = false
 @maxValue(90)
 param softDeleteRetentionInDays int = 30
 
-var kvName = 'cems-${env}-kv-${uniqueString(resourceGroup().id, 'cems', env)}'
-var seedSecrets = [
-  'database-url'
+@description('Network default action — Deny in staging/prod, Allow in dev for developer convenience')
+@allowed(['Allow', 'Deny'])
+param networkDefaultAction string = (env == 'dev') ? 'Allow' : 'Deny'
+
+// Key Vault names: 3-24 chars globally unique. Budget:
+// 'cems-' (5) + env (max 7 'staging') + '-kv-' (4) + hash = 24 → hash budget 8 chars.
+var kvHash = substring(uniqueString(resourceGroup().id, 'cems', env), 0, 8)
+var kvName = 'cems-${env}-kv-${kvHash}'
+
+// Secrets seeded with placeholders here are populated post-deploy by the operator
+// (operator-supplied: JWT secrets, third-party API keys).
+// The other four secrets — database-url, azure-storage-connection-string, redis-url,
+// appinsights-connection-string — are written at deploy time from resource outputs
+// in main.bicep (via dedicated Microsoft.KeyVault/vaults/secrets resources there).
+var operatorSeededSecrets = [
   'jwt-secret'
   'jwt-refresh-secret'
-  'azure-storage-connection-string'
-  'redis-url'
   'resend-api-key'
   'claude-api-key'
-  'appinsights-connection-string'
   'sql-admin-password'
 ]
 
-resource keyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' = {
+resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
   name: kvName
   location: location
   tags: tags
@@ -51,13 +60,13 @@ resource keyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' = {
     enablePurgeProtection: enablePurgeProtection ? true : null
     publicNetworkAccess: 'Enabled'
     networkAcls: {
-      defaultAction: 'Allow'
+      defaultAction: networkDefaultAction
       bypass: 'AzureServices'
     }
   }
 }
 
-resource placeholderSecrets 'Microsoft.KeyVault/vaults/secrets@2024-04-01-preview' = [for secretName in seedSecrets: {
+resource placeholderSecrets 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = [for secretName in operatorSeededSecrets: {
   parent: keyVault
   name: secretName
   properties: {

@@ -10,6 +10,12 @@ import { z } from 'zod'
 const sasTtlSchema = z.number().int().min(1).max(60)
 const connectionStringSchema = z.string().min(1, 'AZURE_STORAGE_CONNECTION_STRING must be set')
 
+/**
+ * Maximum clock-skew backoff for SAS startsOn. Microsoft recommends 15 minutes
+ * to tolerate NTP drift across Azure regions.
+ */
+const SAS_CLOCK_SKEW_MS = 15 * 60 * 1000
+
 export class AzureBlobConfigError extends Error {
   constructor(message: string) {
     super(message)
@@ -29,11 +35,26 @@ export function getBlobServiceClient(): BlobServiceClient {
   return cachedClient
 }
 
+/**
+ * Reset the cached BlobServiceClient. Call when AZURE_STORAGE_CONNECTION_STRING
+ * rotates (Key Vault secret rotation). Also used by test suites to ensure
+ * isolation between tests.
+ */
+export function resetBlobServiceClient(): void {
+  cachedClient = undefined
+}
+
 export interface UploadBlobResult {
-  url: string
+  /** Absolute blob URL without SAS. Will 401 unless container permits public access. */
+  blobUrl: string
+  /** Azure ETag from the upload response. */
   etag: string | undefined
 }
 
+/**
+ * Uploads a blob. Default content encoding for string input is UTF-8.
+ * For binary data, pass a Buffer directly.
+ */
 export async function uploadBlob(
   container: string,
   blobName: string,
@@ -42,16 +63,20 @@ export async function uploadBlob(
 ): Promise<UploadBlobResult> {
   const svc = getBlobServiceClient()
   const client = svc.getContainerClient(container).getBlockBlobClient(blobName)
-  const buffer = typeof data === 'string' ? Buffer.from(data) : data
+  const buffer = typeof data === 'string' ? Buffer.from(data, 'utf-8') : data
   const upload = await client.upload(buffer, buffer.byteLength, {
     blobHTTPHeaders: { blobContentType: contentType },
   })
   return {
-    url: client.url,
+    blobUrl: client.url,
     etag: upload.etag,
   }
 }
 
+/**
+ * Generates a read-only SAS token for a blob. TTL is 1-60 minutes.
+ * Token starts 15 minutes in the past to tolerate NTP drift.
+ */
 export function generateReadSasToken(
   container: string,
   blobName: string,
@@ -67,7 +92,7 @@ export function generateReadSasToken(
     )
   }
 
-  const startsOn = new Date(Date.now() - 60_000)
+  const startsOn = new Date(Date.now() - SAS_CLOCK_SKEW_MS)
   const expiresOn = new Date(Date.now() + ttl * 60_000)
 
   const sas = generateBlobSASQueryParameters(
@@ -85,6 +110,10 @@ export function generateReadSasToken(
   return sas.toString()
 }
 
+/**
+ * Returns the full signed read URL for a blob (blob URL + '?' + SAS). Use this
+ * when handing an audit photo URL to a browser.
+ */
 export function buildReadSasUrl(
   container: string,
   blobName: string,

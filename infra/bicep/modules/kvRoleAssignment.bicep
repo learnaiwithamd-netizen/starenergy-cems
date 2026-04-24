@@ -11,7 +11,7 @@ param principalId string
 @allowed(['ServicePrincipal', 'User', 'Group'])
 param principalType string = 'ServicePrincipal'
 
-resource keyVault 'Microsoft.KeyVault/vaults@2024-04-01-preview' existing = {
+resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
   name: keyVaultName
 }
 

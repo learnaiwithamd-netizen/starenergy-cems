@@ -38,3 +38,7 @@ output redisHostname string = redis.properties.hostName
 output redisPort int = redis.properties.sslPort
 output redisName string = redis.name
 output redisId string = redis.id
+
+// BullMQ-compatible connection string (rediss:// with TLS). Written to Key Vault in main.bicep.
+@secure()
+output connectionString string = 'rediss://:${redis.listKeys().primaryKey}@${redis.properties.hostName}:${redis.properties.sslPort}'

@@ -1,5 +1,6 @@
 // network.bicep — VNet and subnets baseline
-// Address space: 10.0.0.0/16 per env (non-overlapping across environments if peering is introduced later)
+// Address spaces are per-env and non-overlapping so peering between envs (shared bastion,
+// shared monitoring, ExpressRoute hub) works without AddressSpacesOverlap errors.
 
 @description('Environment name (dev | staging | prod)')
 @allowed(['dev', 'staging', 'prod'])
@@ -11,6 +12,18 @@ param location string
 @description('Resource tags')
 param tags object
 
+@description('VNet address space (/16) — must be non-overlapping across dev/staging/prod for peering')
+param vnetAddressPrefix string
+
+@description('Apps subnet prefix (/24 within vnetAddressPrefix, expected: <vnet octet>.<env>.1.0/24)')
+param appsSubnetPrefix string
+
+@description('Containers subnet prefix (/23 within vnetAddressPrefix)')
+param containersSubnetPrefix string
+
+@description('Data subnet prefix (/24 within vnetAddressPrefix) — reserved for private endpoints in staging/prod')
+param dataSubnetPrefix string
+
 var vnetName = 'cems-${env}-vnet'
 
 resource vnet 'Microsoft.Network/virtualNetworks@2024-05-01' = {
@@ -19,13 +32,13 @@ resource vnet 'Microsoft.Network/virtualNetworks@2024-05-01' = {
   tags: tags
   properties: {
     addressSpace: {
-      addressPrefixes: ['10.0.0.0/16']
+      addressPrefixes: [vnetAddressPrefix]
     }
     subnets: [
       {
         name: 'apps-subnet'
         properties: {
-          addressPrefix: '10.0.1.0/24'
+          addressPrefix: appsSubnetPrefix
           delegations: [
             {
               name: 'appServiceDelegation'
@@ -41,7 +54,7 @@ resource vnet 'Microsoft.Network/virtualNetworks@2024-05-01' = {
       {
         name: 'containers-subnet'
         properties: {
-          addressPrefix: '10.0.2.0/23'
+          addressPrefix: containersSubnetPrefix
           delegations: [
             {
               name: 'containerAppsDelegation'
@@ -57,7 +70,7 @@ resource vnet 'Microsoft.Network/virtualNetworks@2024-05-01' = {
       {
         name: 'data-subnet'
         properties: {
-          addressPrefix: '10.0.4.0/24'
+          addressPrefix: dataSubnetPrefix
           privateEndpointNetworkPolicies: 'Disabled'
           privateLinkServiceNetworkPolicies: 'Enabled'
         }

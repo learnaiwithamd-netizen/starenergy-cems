@@ -19,12 +19,15 @@ param sqlTier string = 'Standard'
 @description('SQL admin login name')
 param adminLogin string = 'cemsadmin'
 
-@description('SQL admin password — fetched from Key Vault via existing secret reference in main.bicep')
+@description('SQL admin password — accept as secure param (Azure SQL cannot read from Key Vault at provisioning time)')
 @secure()
 param adminPassword string
 
 @description('Whether to enable Advanced Data Security / threat detection (staging + prod only)')
 param enableThreatDetection bool = false
+
+@description('Allow access from all Azure services — pentest finding if enabled in prod; allows any Azure tenants service to reach the server then authn takes over. Default false.')
+param allowAzureServicesFirewall bool = false
 
 @description('Optional firewall IP ranges for dev convenience (empty array in staging/prod)')
 param allowedIpRanges array = []
@@ -32,7 +35,7 @@ param allowedIpRanges array = []
 var sqlServerName = 'cems-${env}-sql-${uniqueString(resourceGroup().id, 'cems', env)}'
 var sqlDatabaseName = 'cems'
 
-resource sqlServer 'Microsoft.Sql/servers@2024-05-01-preview' = {
+resource sqlServer 'Microsoft.Sql/servers@2023-08-01-preview' = {
   name: sqlServerName
   location: location
   tags: tags
@@ -45,7 +48,7 @@ resource sqlServer 'Microsoft.Sql/servers@2024-05-01-preview' = {
   }
 }
 
-resource sqlDatabase 'Microsoft.Sql/servers/databases@2024-05-01-preview' = {
+resource sqlDatabase 'Microsoft.Sql/servers/databases@2023-08-01-preview' = {
   parent: sqlServer
   name: sqlDatabaseName
   location: location
@@ -60,7 +63,8 @@ resource sqlDatabase 'Microsoft.Sql/servers/databases@2024-05-01-preview' = {
   }
 }
 
-resource allowAzureServices 'Microsoft.Sql/servers/firewallRules@2024-05-01-preview' = {
+// Gated by param (default false). Enabling allows any Azure customer's service to reach the server.
+resource allowAzureServices 'Microsoft.Sql/servers/firewallRules@2023-08-01-preview' = if (allowAzureServicesFirewall) {
   parent: sqlServer
   name: 'AllowAzureServices'
   properties: {
@@ -69,7 +73,7 @@ resource allowAzureServices 'Microsoft.Sql/servers/firewallRules@2024-05-01-prev
   }
 }
 
-resource devIpAllowlist 'Microsoft.Sql/servers/firewallRules@2024-05-01-preview' = [for (ipRange, i) in allowedIpRanges: {
+resource devIpAllowlist 'Microsoft.Sql/servers/firewallRules@2023-08-01-preview' = [for (ipRange, i) in allowedIpRanges: {
   parent: sqlServer
   name: 'AllowDev-${i}'
   properties: {
@@ -78,7 +82,7 @@ resource devIpAllowlist 'Microsoft.Sql/servers/firewallRules@2024-05-01-preview'
   }
 }]
 
-resource threatDetection 'Microsoft.Sql/servers/securityAlertPolicies@2024-05-01-preview' = if (enableThreatDetection) {
+resource threatDetection 'Microsoft.Sql/servers/securityAlertPolicies@2023-08-01-preview' = if (enableThreatDetection) {
   parent: sqlServer
   name: 'Default'
   properties: {
@@ -91,3 +95,4 @@ resource threatDetection 'Microsoft.Sql/servers/securityAlertPolicies@2024-05-01
 output sqlServerFqdn string = sqlServer.properties.fullyQualifiedDomainName
 output sqlServerName string = sqlServer.name
 output sqlDatabaseName string = sqlDatabase.name
+output sqlAdminLogin string = adminLogin

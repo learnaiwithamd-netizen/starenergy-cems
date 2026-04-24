@@ -33,14 +33,25 @@ infra/bicep/
 - Correct subscription selected: `az account set --subscription <id>`
 - Azure tenant id known: `az account show --query tenantId -o tsv`
 
+### Required RBAC for the deploying principal
+
+Before running `deploy.sh`, the principal that runs `az deployment sub create` needs the following role assignments. If you are a subscription Owner or Contributor, you already have most of these; otherwise request from your tenant admin.
+
+| Scope | Role | Why |
+|---|---|---|
+| Subscription | **Contributor** | Create resource group + resources |
+| Subscription | **User Access Administrator** (or **Role Based Access Control Administrator**) | Assign the `Key Vault Secrets User` role to App Service + Container Apps managed identities |
+| Log Analytics workspace (after first deploy) | **Log Analytics Contributor** | Container Apps module calls `listKeys()` on the workspace — requires `Microsoft.OperationalInsights/workspaces/sharedKeys/action`. Subscription Contributor already grants this; explicit note here for minimally-permissioned service principals in Story 0.6 CI |
+| Key Vault (after first deploy, for operator tasks) | **Key Vault Secrets Officer** | Populate the 5 operator-seeded placeholders (`jwt-secret`, `jwt-refresh-secret`, `resend-api-key`, `claude-api-key`, `sql-admin-password`). Self-assign after first deploy (see Post-deploy section below) |
+
 ## One-time setup per environment
 
-1. Open the target `envs/<env>/main.bicepparam` and set `tenantId` to your tenant value (currently a placeholder `00000000-...`).
-2. Export a strong SQL admin password for this deploy:
+1. Open the target `envs/<env>/main.bicepparam` and set `tenantId` to your tenant value (currently a placeholder `00000000-...`). `deploy.sh` refuses to proceed if the placeholder is still in the file.
+2. Export a strong SQL admin password for this deploy. The script enforces ≥16 chars and rejects placeholder strings. Use alphanumeric only to avoid `;/+=` chars that break connection strings:
    ```bash
-   export CEMS_SQL_ADMIN_PASSWORD="$(openssl rand -base64 32)"
+   export CEMS_SQL_ADMIN_PASSWORD="$(openssl rand -base64 48 | tr -d '/+=' | head -c 32)"
    ```
-   (The password is seeded into the SQL server and must be rotated via `az sql server update` after the first deploy.)
+   The password is used to provision the SQL server. `main.bicep` also writes the full `database-url` secret into Key Vault at deploy time using this password — so apps pick it up automatically via Key Vault references.
 
 ## Deploy
 
@@ -61,22 +72,35 @@ az deployment sub what-if \
 
 For `prod`, the wrapper requires typing `DEPLOY PROD` and then the subscription id to proceed.
 
-## Post-deploy: populate Key Vault secrets
+## Post-deploy: populate operator-seeded Key Vault secrets
 
-The Bicep template seeds Key Vault with placeholder values (`REPLACE_ME_<secret-name>`). After the first deploy, grant yourself `Key Vault Secrets Officer` and set real values:
+Four secrets are written automatically by the Bicep deploy:
+
+- `database-url` — full SQL connection string (uses `$CEMS_SQL_ADMIN_PASSWORD`)
+- `azure-storage-connection-string` — real account key from Storage
+- `redis-url` — `rediss://...` with primary key
+- `appinsights-connection-string` — from App Insights
+
+Five are seeded with `REPLACE_ME_*` placeholders for the operator to populate post-deploy:
 
 ```bash
 KV=$(az deployment sub show -n <deployment-name> --query properties.outputs.keyVaultName.value -o tsv)
 ME=$(az account show --query user.name -o tsv)
+
+# Grant yourself the role needed to write secrets
 az role assignment create --role "Key Vault Secrets Officer" --assignee "$ME" --scope "$(az keyvault show -n $KV --query id -o tsv)"
 
-az keyvault secret set --vault-name "$KV" --name database-url --value "sqlserver://..."
+# Set the 5 operator-owned secrets
 az keyvault secret set --vault-name "$KV" --name jwt-secret --value "$(openssl rand -base64 64)"
 az keyvault secret set --vault-name "$KV" --name jwt-refresh-secret --value "$(openssl rand -base64 64)"
-az keyvault secret set --vault-name "$KV" --name azure-storage-connection-string --value "DefaultEndpointsProtocol=https;..."
-az keyvault secret set --vault-name "$KV" --name redis-url --value "rediss://..."
 az keyvault secret set --vault-name "$KV" --name resend-api-key --value "re_..."
 az keyvault secret set --vault-name "$KV" --name claude-api-key --value "sk-ant-..."
+az keyvault secret set --vault-name "$KV" --name sql-admin-password --value "$CEMS_SQL_ADMIN_PASSWORD"
+
+# Restart App Service so it re-resolves Key Vault references (deploy.sh already does this once after initial deploy)
+RG="cems-<env>-rg"
+API_APP=$(az deployment sub show -n <deployment-name> --query properties.outputs.apiAppServiceName.value -o tsv)
+az webapp restart --resource-group "$RG" --name "$API_APP"
 ```
 
 App Service picks up the Key Vault references automatically on the next restart.

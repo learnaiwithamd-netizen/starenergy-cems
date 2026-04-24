@@ -3,10 +3,15 @@ using '../../main.bicep'
 param env = 'dev'
 param location = 'canadacentral'
 
-// Replace with your Azure tenant id before deploying
+// Replace with your Azure tenant id before deploying (deploy.sh validates this isn't the placeholder)
 param tenantId = '00000000-0000-0000-0000-000000000000'
 
-// SQL: S2 for dev
+// Non-overlapping VNet per env for future peering
+param vnetAddressPrefix = '10.10.0.0/16'
+param appsSubnetPrefix = '10.10.1.0/24'
+param containersSubnetPrefix = '10.10.2.0/23'
+param dataSubnetPrefix = '10.10.4.0/24'
+
 param sqlSku = {
   name: 'S2'
   tier: 'Standard'
@@ -19,7 +24,6 @@ param redisSku = {
   capacity: 0
 }
 
-// App Service: B2 for dev
 param appServicePlanSku = 'B2'
 
 // Container Apps: minimal footprint, scale to zero when idle
@@ -33,11 +37,11 @@ param containerAppsConfig = {
 param staticWebAppsLocation = 'eastus2'
 param appInsightsRetentionDays = 30
 
-// Seeded via --parameters sqlAdminPassword="..." on the command line
-// or via environment variable; do NOT commit the real value
+// deploy.sh validates this and refuses the placeholder before deployment
 param sqlAdminPassword = readEnvironmentVariable('CEMS_SQL_ADMIN_PASSWORD', 'REPLACE_BEFORE_DEPLOY_use_deploy.sh_with_env_var')
 
-// Dev convenience: allowlist developer workstation IPs (set via env, empty array by default)
+// Dev convenience only — allow Azure services to reach SQL (still requires credentials)
+param enableSqlAllowAzureServices = true
 param sqlFirewallIpRanges = []
 
 // Threat detection off in dev (cost)
@@ -46,6 +50,9 @@ param enableSqlThreatDetection = false
 // Purge protection OFF in dev — lets us delete & recreate the vault during iteration
 param enableKeyVaultPurgeProtection = false
 param keyVaultSoftDeleteRetentionDays = 7
+
+// CORS empty on first deploy; populate after SWA hostnames are known
+param swaCorsOrigins = []
 
 param extraTags = {
   tier: 'development'

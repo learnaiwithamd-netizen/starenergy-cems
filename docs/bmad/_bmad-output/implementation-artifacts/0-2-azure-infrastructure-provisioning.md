@@ -340,3 +340,58 @@ Implementation deviations / decisions:
 ### Change Log
 
 - 2026-04-24 — Story 0.2 implemented on branch `story/0-2-azure-infrastructure`. 13 Bicep files, 3 env parameter files, deploy wrapper, README, Azure Blob utility with test suite. All 5 ACs verified: `bicep build` clean (0 errors, 0 warnings), `turbo type-check` (9/9), `turbo test --filter=api` (6/6).
+- 2026-04-24 — `main.json` compiled ARM output accidentally committed and then untracked in a follow-up commit; `.gitignore` updated to exclude `infra/bicep/**/*.json`.
+- 2026-04-24 — Code review complete. 3 adversarial reviewers surfaced 21 patch items, 19 deferrals, 7 dismissals.
+- 2026-04-24 — All 21 review patches applied on the same branch. Summary: KV name hash substring'd to 8 chars (fits 24-char limit); prod staging slot inherits `sharedSiteConfig` with full appSettings; `deploy.sh` CI mode + password/tenant validation + post-deploy webapp restart; SQL `AllowAzureServices` gated by `enableSqlAllowAzureServices` (dev only); VNet CIDRs per-env (10.10/10.20/10.30); KV + Storage `networkAcls.defaultAction=Deny` in staging/prod; 4 real connection strings written to KV via new `modules/kvSecret.bicep`; preview API versions pinned to stable; SKU tier inference with `skuTierMap[?skuPrefix] ?? 'Standard'`; `azure-blob.ts` gets `resetBlobServiceClient`, 15-min SAS clock skew, renamed `uploadBlob` return to `{ blobUrl, etag }`; test suite grown 6 → 10 cases (adds cache-reset, SAS-credential error-branch, `buildReadSasUrl`). Verification: `bicep build main.bicep` clean, `turbo type-check` 9/9, `turbo test --filter=api` 10/10 in 420ms.
+
+### Review Findings
+
+**Code review 2026-04-24** — 3-layer adversarial review (Blind Hunter, Edge Case Hunter, Acceptance Auditor).
+
+**Patch (unchecked — awaiting action):**
+
+- [x] [Review][Patch] **[HIGH]** Key Vault name exceeds 24-char Azure limit in all environments — `cems-{env}-kv-{13-char uniqueString}` produces 25-29 chars; staging deploy will be rejected outright [infra/bicep/modules/keyvault.bicep:25]
+- [x] [Review][Patch] **[HIGH]** Prod staging slot inherits no appSettings — `siteConfig` lacks KV references, `NODE_ENV`, `DATABASE_URL` etc.; a slot swap would swap in a broken instance [infra/bicep/modules/appservice.bicep:117-139]
+- [x] [Review][Patch] **[HIGH]** deploy.sh `read -rp` hangs/exits on non-interactive stdin (CI) with no `-t` timeout and no `[[ -t 0 ]]` guard; no `--yes`/`--ci` escape hatch [infra/bicep/deploy.sh:60,67,82]
+- [x] [Review][Patch] **[HIGH]** deploy.sh doesn't validate `CEMS_SQL_ADMIN_PASSWORD` complexity or reject the `REPLACE_BEFORE_DEPLOY_...` fallback — bad password propagates halfway through deployment before SQL rejects it [infra/bicep/deploy.sh + envs/*/main.bicepparam:38-40]
+- [x] [Review][Patch] **[HIGH]** App Service KV references will resolve to literal `REPLACE_ME_*` placeholders on first startup — `database-url`, `azure-storage-connection-string`, `redis-url`, `appinsights-connection-string` are never materialised from real resource outputs [infra/bicep/modules/keyvault.bicep:26-36 + downstream]
+- [x] [Review][Patch] **[HIGH]** deploy.sh accepts tenant-id placeholder `00000000-...` from bicepparam — every RBAC assignment fails or silently grants zero access [infra/bicep/envs/*/main.bicepparam:7 + deploy.sh]
+- [x] [Review][Patch] **[HIGH]** SQL `AllowAzureServices` firewall rule is unconditional — prod expects VNet-only access per intent comments but allows any Azure tenant to auth-spray [infra/bicep/modules/sql.bicep:61-67]
+- [x] [Review][Patch] **[HIGH]** Key Vault RBAC propagation race — first-deploy App Service starts before `Key Vault Secrets User` role assignment propagates (30-120s); secrets resolve to 401 until manual restart [infra/bicep/main.bicep:194-210 + modules/appservice.bicep:66-111]
+- [x] [Review][Patch] **[HIGH]** VNet address space `10.0.0.0/16` identical across all three environments — any future peering rejected with `AddressSpacesOverlap` [infra/bicep/modules/network.bicep:22]
+- [x] [Review][Patch] Container Apps `listKeys()` on Log Analytics requires `Microsoft.OperationalInsights/workspaces/sharedKeys/action` — document prerequisite in README [infra/bicep/modules/containerapps.bicep:42-56]
+- [x] [Review][Patch] Key Vault + Storage `networkAcls.defaultAction: 'Allow'` with `publicNetworkAccess: 'Enabled'` — prod should deny-by-default with service/IP allowlists [infra/bicep/modules/keyvault.bicep:52-56, storage.bicep:41-45]
+- [x] [Review][Patch] App Insights connection string bypasses KV — written directly to App Service `appSettings` plaintext; `appinsights-connection-string` KV placeholder never populated [infra/bicep/modules/appservice.bicep:80-81]
+- [x] [Review][Patch] Preview-API versions used on GA resources — violates Story 0.1 "no wildcards / no preview" learning: `Microsoft.Sql/servers@2024-05-01-preview`, `Microsoft.KeyVault/vaults@2024-04-01-preview` [infra/bicep/modules/sql.bicep, keyvault.bicep, kvRoleAssignment.bicep]
+- [x] [Review][Patch] `modules/redis.bicep` missing `primaryConnectionStringSecretName` output and KV-write of real connection string (Task 4 contract) [infra/bicep/modules/redis.bicep]
+- [x] [Review][Patch] App Service tier inference `startsWith(planSku, 'B') ? 'Basic' : 'Standard'` silently misclassifies P-series / Premium V3 SKUs — param override to `P1v3` produces wrong tier [infra/bicep/modules/appservice.bicep:38]
+- [x] [Review][Patch] deploy.sh password generator hint `openssl rand -base64 32` can emit `;`, `/`, `+`, `=` which break SQL conn-strings downstream [infra/bicep/deploy.sh:42]
+- [x] [Review][Patch] `azure-blob.ts` `cachedClient` singleton is never invalidated — stale on KV secret rotation; also causes test pollution (test file's own comment admits) [apps/api/src/lib/azure-blob.ts:20-30 + azure-blob.test.ts]
+- [x] [Review][Patch] `uploadBlob` returns bare `client.url` that 401s (containers are `publicAccess: None`) — API invites callers to hand back an unusable URL; return SAS URL or rename return field [apps/api/src/lib/azure-blob.ts:47-51]
+- [x] [Review][Patch] Storage CORS allows `https://*.azurestaticapps.net` with `*` headers and PUT/POST — any other tenant's SWA can write cross-origin once SAS lands [infra/bicep/modules/storage.bicep:63-70]
+- [x] [Review][Patch] SAS `startsOn` only backs off 60s; Microsoft recommends 15 minutes for clock-skew headroom [apps/api/src/lib/azure-blob.ts:67]
+- [x] [Review][Patch] `generateReadSasToken` non-shared-key credential error branch is untested [apps/api/src/lib/azure-blob.test.ts]
+
+**Deferred (pre-existing / future-story scope / acceptable risk):**
+
+- [x] [Review][Defer] SAS token no stored access policy (defense-in-depth gap) [apps/api/src/lib/azure-blob.ts] — deferred, revisit when user-delegation SAS is introduced
+- [x] [Review][Defer] KV reference URI concatenation format brittle but functional [modules/appservice.bicep:30] — deferred, cosmetic
+- [x] [Review][Defer] `data-subnet` created but unused [modules/network.bicep:57-64] — by design, reserved for private endpoints in staging+prod
+- [x] [Review][Defer] `redisSku` object param is loosely typed [modules/redis.bicep:27] — deferred, tighten when Bicep user-defined types used project-wide
+- [x] [Review][Defer] `sqlFirewallIpRanges` documented as env-driven but not wired [envs/dev/main.bicepparam:41] — wire when developer IP allowlist is actually needed
+- [x] [Review][Defer] `Buffer.from(data)` assumes UTF-8 for string input [apps/api/src/lib/azure-blob.ts:45-46] — document encoding contract
+- [x] [Review][Defer] `.gitignore` `infra/bicep/**/*.json` glob is broad [.gitignore] — revisit if a non-compiled JSON artifact is intentionally added
+- [x] [Review][Defer] `uniqueString` same hash across services [multiple modules] — low collision risk; revisit if a service name is ever globally taken
+- [x] [Review][Defer] App Service `PORT=8080` vs `WEBSITES_PORT` convention [modules/appservice.bicep:65] — works today on Linux default
+- [x] [Review][Defer] `containers-subnet` /23 oversized, future subnet-addition landmines [modules/network.bicep] — Azure CA consumption env minimum met
+- [x] [Review][Defer] Storage account name non-deterministic on RG recreation [modules/storage.bicep:24] — documented teardown procedure; unlikely in normal ops
+- [x] [Review][Defer] Key Vault name collision after soft-delete prevents name reuse for 30 days [modules/keyvault.bicep] — documented in README teardown
+- [x] [Review][Defer] `DEPLOYMENT_NAME` uses second-granular timestamp, parallel deploys could collide [deploy.sh:73] — unlikely; deploy.sh is serial
+- [x] [Review][Defer] `FAKE_ACCOUNT_KEY` in test is Buffer base64 (not real 32-byte) [azure-blob.test.ts:4] — SDK accepts it, revisit on SDK upgrade
+- [x] [Review][Defer] Container Apps `maxReplicas` partial object override quirk [modules/containerapps.bicep] — bicepparam files are full objects
+- [x] [Review][Defer] SWA region `eastus2` vs compute `canadacentral` cross-region CORS/latency — architecture accepts this; documented in README
+- [x] [Review][Defer] `enablePurgeProtection: ... ? true : null` pattern needs clearer comment [modules/keyvault.bicep:51] — works correctly, add docstring
+- [x] [Review][Defer] Calc container has no secret refs despite MI + RBAC wiring [modules/containerapps.bicep] — Story 0.5 (real calc image) wires them
+- [x] [Review][Defer] SWA `canadacentral` never attempted before `eastus2` fallback [envs/*/main.bicepparam] — Dev Notes explicitly permits direct fallback
+
+**Dismissed (7):** Storage `deleteRetentionPolicy` scope creep (Azure best practice, keep); KV 9 secrets vs 7 in Task 6 (extra 2 are helpful placeholders); `main.bicep` module order (positive finding — correct); File List accuracy (positive finding — clean); anti-pattern audit (positive finding — clean); deploy.sh subscription-name quoting (reviewer flagged as non-issue); test isolation (already captured in patch P17).

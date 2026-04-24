@@ -18,14 +18,18 @@ param skuName string = 'Standard_LRS'
 @description('Access tier')
 param accessTier string = 'Hot'
 
-@description('CORS allowed origins (Static Web Apps domain once known)')
-param corsAllowedOrigins array = ['https://*.azurestaticapps.net']
+@description('CORS allowed origins. Defaults to empty — Story 0.6 (CI/CD) populates with specific SWA hostnames once they are known. Never leave as *.azurestaticapps.net (any Azure tenant).')
+param corsAllowedOrigins array = []
+
+@description('Network default action — Deny in staging/prod, Allow in dev')
+@allowed(['Allow', 'Deny'])
+param networkDefaultAction string = (env == 'dev') ? 'Allow' : 'Deny'
 
 // Storage account names: 3-24 chars, lowercase alphanumeric, globally unique
 // cems (4) + env (max 7 'staging') + st (2) + 9-char hash = 22 chars
 var storageName = toLower('cems${env}st${substring(uniqueString(resourceGroup().id, 'cems', env), 0, 9)}')
 
-resource storage 'Microsoft.Storage/storageAccounts@2024-01-01' = {
+resource storage 'Microsoft.Storage/storageAccounts@2023-05-01' = {
   name: storageName
   location: location
   tags: tags
@@ -40,7 +44,7 @@ resource storage 'Microsoft.Storage/storageAccounts@2024-01-01' = {
     minimumTlsVersion: 'TLS1_2'
     publicNetworkAccess: 'Enabled'
     networkAcls: {
-      defaultAction: 'Allow'
+      defaultAction: networkDefaultAction
       bypass: 'AzureServices'
     }
     encryption: {
@@ -55,17 +59,17 @@ resource storage 'Microsoft.Storage/storageAccounts@2024-01-01' = {
   }
 }
 
-resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2024-01-01' = {
+resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2023-05-01' = {
   parent: storage
   name: 'default'
   properties: {
     cors: {
-      corsRules: [
+      corsRules: empty(corsAllowedOrigins) ? [] : [
         {
           allowedOrigins: corsAllowedOrigins
           allowedMethods: ['GET', 'HEAD', 'PUT', 'POST']
-          allowedHeaders: ['*']
-          exposedHeaders: ['*']
+          allowedHeaders: ['x-ms-blob-type', 'x-ms-blob-content-type', 'content-type', 'authorization']
+          exposedHeaders: ['etag']
           maxAgeInSeconds: 3600
         }
       ]
@@ -77,7 +81,7 @@ resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2024-01-01'
   }
 }
 
-resource photosContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2024-01-01' = {
+resource photosContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = {
   parent: blobService
   name: 'audit-photos'
   properties: {
@@ -85,7 +89,7 @@ resource photosContainer 'Microsoft.Storage/storageAccounts/blobServices/contain
   }
 }
 
-resource reportsContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2024-01-01' = {
+resource reportsContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = {
   parent: blobService
   name: 'audit-reports'
   properties: {
@@ -98,3 +102,8 @@ output storageAccountId string = storage.id
 output storageAccountBlobEndpoint string = storage.properties.primaryEndpoints.blob
 output photosContainerName string = photosContainer.name
 output reportsContainerName string = reportsContainer.name
+
+// Connection string for writing to Key Vault in main.bicep.
+// Uses listKeys() at template-expansion time.
+@secure()
+output connectionString string = 'DefaultEndpointsProtocol=https;AccountName=${storage.name};AccountKey=${storage.listKeys().keys[0].value};EndpointSuffix=${environment().suffixes.storage}'
