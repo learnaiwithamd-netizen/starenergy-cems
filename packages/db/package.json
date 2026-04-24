@@ -9,20 +9,25 @@
     ".": "./src/index.ts"
   },
   "scripts": {
+    "build": "prisma generate",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy",
     "db:migrate:dev": "prisma migrate dev",
-    "type-check": "tsc --noEmit"
+    "db:studio": "prisma studio",
+    "type-check": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@cems/types": "workspace:*",
     "@prisma/adapter-mssql": "7.5.0",
-    "@prisma/client": "7.5.0"
+    "@prisma/client": "7.5.0",
+    "zod": "^3.24.1"
   },
   "devDependencies": {
     "@cems/config": "workspace:*",
     "@types/node": "^22.10.5",
     "prisma": "7.5.0",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
   }
 }

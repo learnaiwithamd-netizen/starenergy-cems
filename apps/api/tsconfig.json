@@ -2,7 +2,6 @@
   "extends": "@cems/config/typescript/server.json",
   "compilerOptions": {
     "baseUrl": ".",
-    "rootDir": "src",
     "outDir": "dist",
     "paths": {
       "@cems/types": ["../../packages/types/src/index.ts"],

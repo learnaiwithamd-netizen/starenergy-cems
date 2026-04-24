@@ -1,6 +1,19 @@
 // Prisma schema for Star Energy CEMS
-// Database: Azure SQL (SQL Server) with Row-Level Security
-// Migration: prisma migrate dev (dev) / prisma migrate deploy (CI/CD)
+// Database: Azure SQL (SQL Server) with Row-Level Security via SESSION_CONTEXT
+// Naming convention mandate (architecture.md § Naming Patterns):
+//   - Prisma model: PascalCase singular (Audit)
+//   - DB table:    snake_case plural via @@map (audits)
+//   - Prisma field: camelCase (storeNumber)
+//   - DB column:   snake_case via @map (store_number)
+//   - Foreign key: {tableSingular}Id + @map('{table_singular}_id')
+//   - Enum value:  SCREAMING_SNAKE_CASE
+//
+// Every tenant-scoped table has a non-null tenant_id + index.
+// RLS policies are applied in the `add_rls` migration (not managed by Prisma).
+// The audit_log table is append-only — DB trigger preventing UPDATE/DELETE is deferred to hardening.
+// SQL Server connector limitations:
+//   - No Prisma enums (use String + CHECK constraints added via raw SQL)
+//   - No `Restrict` referential action (use NoAction, which has identical behaviour)
 
 generator client {
   provider        = "prisma-client-js"
@@ -9,13 +22,333 @@ generator client {
 
 datasource db {
   provider = "sqlserver"
-  url      = env("DATABASE_URL")
 }
 
-// ─── Core Tables (stub — populated in Story 0.3) ───────────────────────────
+// ─────────────────────────────────────────────
+// Enum value reference (enforced via CHECK constraints in migration SQL)
+// ─────────────────────────────────────────────
+//   UserRole:    'ADMIN' | 'AUDITOR' | 'CLIENT'
+//   AuditStatus: 'DRAFT' | 'SUBMITTED' | 'IN_REVIEW' | 'CALC_IN_PROGRESS'
+//              | 'CALC_COMPLETE' | 'MANUAL_REVIEW_REQUIRED' | 'APPROVED' | 'PUBLISHED'
+// Compile-time safety in app code comes from @cems/types.
 
-// Table naming: snake_case plural (architecture mandate)
-// All entities: tenant_id non-nullable
-// Enum values: SCREAMING_SNAKE_CASE
+// ─────────────────────────────────────────────
+// Identity & Access
+// ─────────────────────────────────────────────
 
-// Full schema defined in Story 0.3: Database Schema & RLS Foundation
+model User {
+  id               String    @id @default(cuid())
+  tenantId         String    @map("tenant_id")
+  email            String
+  name             String
+  role             String    @db.NVarChar(20)
+  passwordHash     String    @map("password_hash")
+  assignedStoreIds String    @default("[]") @map("assigned_store_ids") @db.NVarChar(Max)
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  sessions           UserSession[]
+  authoredAudits     Audit[]        @relation("AuditAuditor")
+  sectionLocks       SectionLock[]
+  auditLogEntries    AuditLog[]     @relation("AuditLogActor")
+  completedSections  AuditSection[] @relation("SectionCompletedBy")
+
+  @@unique([tenantId, email], map: "uq_users_tenant_email")
+  @@index([tenantId], map: "idx_users_tenant_id")
+  @@map("users")
+}
+
+model UserSession {
+  id                String    @id @default(cuid())
+  userId            String    @map("user_id")
+  refreshTokenHash  String    @unique(map: "uq_sessions_refresh_hash") @map("refresh_token_hash")
+  expiresAt         DateTime  @map("expires_at")
+  revokedAt         DateTime? @map("revoked_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: NoAction, map: "fk_sessions_user")
+
+  @@index([userId], map: "idx_sessions_user_id")
+  @@map("user_sessions")
+}
+
+// ─────────────────────────────────────────────
+// Reference Data
+// ─────────────────────────────────────────────
+
+model StoreRef {
+  id          String   @id @default(cuid())
+  tenantId    String   @map("tenant_id")
+  storeNumber String   @map("store_number")
+  storeName   String?  @map("store_name")
+  address     String?
+  banner      String?
+  region      String?
+  postalCode  String?  @map("postal_code")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  audits Audit[]
+
+  @@unique([tenantId, storeNumber], map: "uq_stores_tenant_number")
+  @@index([tenantId], map: "idx_stores_tenant_id")
+  @@map("store_refs")
+}
+
+// compressor_refs is GLOBAL reference data — NOT tenant-scoped, NOT protected by RLS.
+// Admin-managed via admin-app (Story 6.2). Updates do not require deployments.
+model CompressorRef {
+  id                      String   @id @default(cuid())
+  compressorDbVersion     String   @map("compressor_db_version")
+  modelNumber             String   @map("model_number")
+  manufacturer            String
+  refrigerantType         String   @map("refrigerant_type")
+  regressionCoefficients  String   @map("regression_coefficients") @db.NVarChar(Max)
+  createdAt               DateTime @default(now()) @map("created_at")
+
+  compressors Compressor[]
+
+  @@unique([compressorDbVersion, modelNumber], map: "uq_compressors_version_model")
+  @@index([compressorDbVersion], map: "idx_compressors_version")
+  @@map("compressor_refs")
+}
+
+// ─────────────────────────────────────────────
+// Audit (top of the data hierarchy)
+// ─────────────────────────────────────────────
+
+model Audit {
+  id                   String    @id @default(cuid())
+  tenantId             String    @map("tenant_id")
+  clientId             String    @map("client_id")
+  storeId              String    @map("store_id")
+  auditorUserId        String?   @map("auditor_user_id")
+  status               String    @default("DRAFT") @db.NVarChar(30)
+  currentSectionId     String?   @map("current_section_id")
+  formVersion          String    @map("form_version")
+  compressorDbVersion  String    @map("compressor_db_version")
+
+  generalData          String?   @map("general_data") @db.NVarChar(Max)
+  hvacData             String?   @map("hvac_data") @db.NVarChar(Max)
+  lightingData         String?   @map("lighting_data") @db.NVarChar(Max)
+  buildingEnvelopeData String?   @map("building_envelope_data") @db.NVarChar(Max)
+
+  submittedAt          DateTime? @map("submitted_at")
+  approvedAt           DateTime? @map("approved_at")
+  publishedAt          DateTime? @map("published_at")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  store          StoreRef       @relation(fields: [storeId], references: [id], onDelete: NoAction, map: "fk_audits_store")
+  auditor        User?          @relation("AuditAuditor", fields: [auditorUserId], references: [id], onDelete: NoAction, map: "fk_audits_auditor")
+  sections       AuditSection[]
+  sectionLocks   SectionLock[]
+  auditLog       AuditLog[]
+  machineRooms   MachineRoom[]
+  walkIns        WalkIn[]
+  controllers    Controller[]
+
+  @@index([tenantId], map: "idx_audits_tenant_id")
+  @@index([clientId], map: "idx_audits_client_id")
+  @@index([storeId], map: "idx_audits_store_id")
+  @@index([status], map: "idx_audits_status")
+  @@map("audits")
+}
+
+model AuditSection {
+  id                  String    @id @default(cuid())
+  tenantId            String    @map("tenant_id")
+  auditId             String    @map("audit_id")
+  sectionId           String    @map("section_id")
+  data                String    @map("data") @db.NVarChar(Max)
+  completedAt         DateTime? @map("completed_at")
+  completedByUserId   String?   @map("completed_by_user_id")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  audit       Audit @relation(fields: [auditId], references: [id], onDelete: NoAction, map: "fk_sections_audit")
+  completedBy User? @relation("SectionCompletedBy", fields: [completedByUserId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_sections_user")
+
+  @@unique([auditId, sectionId], map: "uq_sections_audit_section")
+  @@index([tenantId], map: "idx_sections_tenant_id")
+  @@map("audit_sections")
+}
+
+// ─────────────────────────────────────────────
+// Section Locking (FR54-FR57 multi-auditor concurrency)
+// ─────────────────────────────────────────────
+
+model SectionLock {
+  id           String   @id @default(cuid())
+  tenantId     String   @map("tenant_id")
+  auditId      String   @map("audit_id")
+  sectionId    String   @map("section_id")
+  userId       String   @map("user_id")
+  acquiredAt   DateTime @default(now()) @map("acquired_at")
+  expiresAt    DateTime @map("expires_at")
+  heartbeatAt  DateTime @default(now()) @map("heartbeat_at")
+
+  audit Audit @relation(fields: [auditId], references: [id], onDelete: NoAction, map: "fk_locks_audit")
+  user  User  @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_locks_user")
+
+  @@unique([auditId, sectionId], map: "uq_locks_audit_section")
+  @@index([tenantId], map: "idx_locks_tenant_id")
+  @@index([expiresAt], map: "idx_locks_expires_at")
+  @@map("section_locks")
+}
+
+// ─────────────────────────────────────────────
+// Immutable Audit Log (append-only)
+// ─────────────────────────────────────────────
+
+model AuditLog {
+  id           String   @id @default(cuid())
+  tenantId     String   @map("tenant_id")
+  auditId      String?  @map("audit_id")
+  eventType    String   @map("event_type")
+  payload      String   @map("payload") @db.NVarChar(Max)
+  actorUserId  String?  @map("actor_user_id")
+  actorRole    String?  @map("actor_role")
+  occurredAt   DateTime @default(now()) @map("occurred_at")
+
+  audit Audit? @relation(fields: [auditId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_log_audit")
+  actor User?  @relation("AuditLogActor", fields: [actorUserId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_log_actor")
+
+  @@index([tenantId], map: "idx_log_tenant_id")
+  @@index([auditId], map: "idx_log_audit_id")
+  @@index([occurredAt], map: "idx_log_occurred_at")
+  @@map("audit_log")
+}
+
+// ─────────────────────────────────────────────
+// Refrigeration equipment hierarchy
+// ─────────────────────────────────────────────
+
+model MachineRoom {
+  id          String   @id @default(cuid())
+  tenantId    String   @map("tenant_id")
+  auditId     String   @map("audit_id")
+  roomNumber  String   @map("room_number")
+  data        String   @default("{}") @map("data") @db.NVarChar(Max)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  audit             Audit              @relation(fields: [auditId], references: [id], onDelete: NoAction, map: "fk_machineroom_audit")
+  racks             Rack[]
+  conventionalUnits ConventionalUnit[]
+  condensers        Condenser[]
+
+  @@unique([auditId, roomNumber], map: "uq_machineroom_audit_num")
+  @@index([tenantId], map: "idx_machineroom_tenant_id")
+  @@map("machine_rooms")
+}
+
+model Rack {
+  id             String   @id @default(cuid())
+  tenantId       String   @map("tenant_id")
+  machineRoomId  String   @map("machine_room_id")
+  rackNumber     String   @map("rack_number")
+  data           String   @default("{}") @map("data") @db.NVarChar(Max)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  machineRoom  MachineRoom   @relation(fields: [machineRoomId], references: [id], onDelete: NoAction, map: "fk_rack_room")
+  compressors  Compressor[]
+  displayCases DisplayCase[]
+
+  @@unique([machineRoomId, rackNumber], map: "uq_rack_room_num")
+  @@index([tenantId], map: "idx_rack_tenant_id")
+  @@map("racks")
+}
+
+model Compressor {
+  id                String   @id @default(cuid())
+  tenantId          String   @map("tenant_id")
+  rackId            String   @map("rack_id")
+  compressorNumber  String   @map("compressor_number")
+  compressorRefId   String?  @map("compressor_ref_id")
+  data              String   @default("{}") @map("data") @db.NVarChar(Max)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  rack           Rack           @relation(fields: [rackId], references: [id], onDelete: NoAction, map: "fk_comp_rack")
+  compressorRef  CompressorRef? @relation(fields: [compressorRefId], references: [id], onDelete: NoAction, map: "fk_comp_ref")
+
+  @@index([tenantId], map: "idx_comp_tenant_id")
+  @@map("compressors")
+}
+
+model ConventionalUnit {
+  id              String   @id @default(cuid())
+  tenantId        String   @map("tenant_id")
+  machineRoomId   String   @map("machine_room_id")
+  unitNumber      String   @map("unit_number")
+  data            String   @default("{}") @map("data") @db.NVarChar(Max)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  machineRoom MachineRoom @relation(fields: [machineRoomId], references: [id], onDelete: NoAction, map: "fk_convunit_room")
+
+  @@index([tenantId], map: "idx_convunit_tenant_id")
+  @@map("conventional_units")
+}
+
+model Condenser {
+  id              String   @id @default(cuid())
+  tenantId        String   @map("tenant_id")
+  machineRoomId   String   @map("machine_room_id")
+  condenserNumber String   @map("condenser_number")
+  data            String   @default("{}") @map("data") @db.NVarChar(Max)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  machineRoom MachineRoom @relation(fields: [machineRoomId], references: [id], onDelete: NoAction, map: "fk_cond_room")
+
+  @@index([tenantId], map: "idx_cond_tenant_id")
+  @@map("condensers")
+}
+
+model WalkIn {
+  id            String   @id @default(cuid())
+  tenantId      String   @map("tenant_id")
+  auditId       String   @map("audit_id")
+  walkInNumber  String   @map("walk_in_number")
+  data          String   @default("{}") @map("data") @db.NVarChar(Max)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  audit Audit @relation(fields: [auditId], references: [id], onDelete: NoAction, map: "fk_walkin_audit")
+
+  @@index([tenantId], map: "idx_walkin_tenant_id")
+  @@map("walk_ins")
+}
+
+model DisplayCase {
+  id                 String   @id @default(cuid())
+  tenantId           String   @map("tenant_id")
+  rackId             String   @map("rack_id")
+  displayCaseNumber  String   @map("display_case_number")
+  data               String   @default("{}") @map("data") @db.NVarChar(Max)
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  rack Rack @relation(fields: [rackId], references: [id], onDelete: NoAction, map: "fk_case_rack")
+
+  @@index([tenantId], map: "idx_case_tenant_id")
+  @@map("display_cases")
+}
+
+model Controller {
+  id                String   @id @default(cuid())
+  tenantId          String   @map("tenant_id")
+  auditId           String   @map("audit_id")
+  controllerNumber  String   @map("controller_number")
+  data              String   @default("{}") @map("data") @db.NVarChar(Max)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  audit Audit @relation(fields: [auditId], references: [id], onDelete: NoAction, map: "fk_controller_audit")
+
+  @@index([tenantId], map: "idx_controller_tenant_id")
+  @@map("controllers")
+}

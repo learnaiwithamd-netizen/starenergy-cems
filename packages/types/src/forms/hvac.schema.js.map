@@ -1,0 +1,1 @@
+{"version":3,"file":"hvac.schema.js","sourceRoot":"","sources":["hvac.schema.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,CAAC,EAAE,MAAM,KAAK,CAAA;AAEvB,MAAM,CAAC,MAAM,iBAAiB,GAAG,CAAC,CAAC,MAAM,CAAC;IACxC,SAAS,EAAE,CAAC,CAAC,MAAM,EAAE,CAAC,GAAG,EAAE,CAAC,WAAW,EAAE,CAAC,QAAQ,EAAE;CACrD,CAAC,CAAA"}

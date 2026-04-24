@@ -23,6 +23,8 @@ infra/bicep/**/*.json
 .env.local
 .env.*.local
 *.local
+# packages/db/.env holds local dev DB credentials — never commit
+packages/db/.env
 
 # Logs
 *.log

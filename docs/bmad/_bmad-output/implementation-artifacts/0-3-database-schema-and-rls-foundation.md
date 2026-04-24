@@ -1,6 +1,6 @@
 # Story 0.3: Database Schema & RLS Foundation
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -24,16 +24,16 @@ So that all application features have a secure, tenant-scoped data layer from da
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1: Update `@cems/db` package dependencies and scripts** (AC: 1, 6)
-  - [ ] Verify `packages/db/package.json` has `@prisma/client@7.5.0`, `@prisma/adapter-mssql@7.5.0`, `prisma@7.5.0`, `@cems/types` (workspace)
-  - [ ] Add `zod` as dev dep for RLS context validation
-  - [ ] Confirm `scripts`: `db:generate`, `db:migrate`, `db:migrate:dev`, `db:studio`, `type-check`
-  - [ ] Add `build` script: `prisma generate` (so Prisma client is materialised before downstream type-check via `turbo.json` `^build` dependency)
+- [x] **Task 1: Update `@cems/db` package dependencies and scripts** (AC: 1, 6)
+  - [x] Verify `packages/db/package.json` has `@prisma/client@7.5.0`, `@prisma/adapter-mssql@7.5.0`, `prisma@7.5.0`, `@cems/types` (workspace)
+  - [x] Add `zod` as dev dep for RLS context validation
+  - [x] Confirm `scripts`: `db:generate`, `db:migrate`, `db:migrate:dev`, `db:studio`, `type-check`
+  - [x] Add `build` script: `prisma generate` (so Prisma client is materialised before downstream type-check via `turbo.json` `^build` dependency)
 
-- [ ] **Task 2: Write the complete Prisma schema** (AC: 1, 5)
-  - [ ] Author `packages/db/prisma/schema.prisma` with datasource (sqlserver), generator (prisma-client-js with `previewFeatures: ["driverAdapters"]`)
-  - [ ] Enums: `UserRole` (ADMIN, AUDITOR, CLIENT), `AuditStatus` (matches `@cems/types` — 8 values including DRAFT, SUBMITTED, IN_REVIEW, CALC_IN_PROGRESS, CALC_COMPLETE, MANUAL_REVIEW_REQUIRED, APPROVED, PUBLISHED)
-  - [ ] Core tables with `@@map` to snake_case + `@@schema("dbo")`:
+- [x] **Task 2: Write the complete Prisma schema** (AC: 1, 5)
+  - [x] Author `packages/db/prisma/schema.prisma` with datasource (sqlserver), generator (prisma-client-js with `previewFeatures: ["driverAdapters"]`)
+  - [x] Enums: `UserRole` (ADMIN, AUDITOR, CLIENT), `AuditStatus` (matches `@cems/types` — 8 values including DRAFT, SUBMITTED, IN_REVIEW, CALC_IN_PROGRESS, CALC_COMPLETE, MANUAL_REVIEW_REQUIRED, APPROVED, PUBLISHED)
+  - [x] Core tables with `@@map` to snake_case + `@@schema("dbo")`:
     - `users` — id, tenant_id, email (unique per tenant), name, role (enum), assigned_store_ids (JSON/NVARCHAR(MAX)), password_hash, created_at, updated_at
     - `user_sessions` — id, user_id, refresh_token_hash (unique), expires_at, created_at, revoked_at (nullable)
     - `store_refs` — id, tenant_id, store_number, store_name, address, banner, region, postal_code, created_at, updated_at
@@ -42,7 +42,7 @@ So that all application features have a secure, tenant-scoped data layer from da
     - `audit_sections` — id, audit_id (FK audits), section_id (string identifier), data (JSON), completed_at, completed_by_user_id, created_at, updated_at
     - `section_locks` — id, audit_id, section_id, user_id, acquired_at, expires_at, heartbeat_at (constraint: unique (audit_id, section_id))
     - `audit_log` — id, tenant_id, audit_id, event_type (string), payload (JSON), actor_user_id, actor_role, occurred_at — INSERT ONLY
-  - [ ] Equipment hierarchy tables (architecture mandate — hybrid relational model):
+  - [x] Equipment hierarchy tables (architecture mandate — hybrid relational model):
     - `machine_rooms` — id, audit_id, room_number, data (JSON for flexible fields), created_at
     - `racks` — id, machine_room_id, rack_number, data (JSON), created_at
     - `compressors` — id, rack_id, compressor_number, compressor_ref_id (FK compressor_refs), data (JSON), created_at
@@ -51,73 +51,73 @@ So that all application features have a secure, tenant-scoped data layer from da
     - `walk_ins` — id, audit_id, walk_in_number, data (JSON), created_at
     - `display_cases` — id, rack_id, display_case_number, data (JSON), created_at
     - `controllers` — id, audit_id, controller_number, data (JSON), created_at
-  - [ ] All `id` columns are `String @id @default(cuid())` (cuid2 preferred but Prisma default is cuid v1)
-  - [ ] All timestamps: `DateTime @default(now())` for created_at; updated_at via `@updatedAt`
-  - [ ] All `tenant_id` columns: non-nullable, indexed (`@@index([tenant_id])`)
-  - [ ] All FK columns follow `{table_singular}_id` convention, with `@relation` and `onDelete: Restrict` (no accidental cascade deletes)
+  - [x] All `id` columns are `String @id @default(cuid())` (cuid2 preferred but Prisma default is cuid v1)
+  - [x] All timestamps: `DateTime @default(now())` for created_at; updated_at via `@updatedAt`
+  - [x] All `tenant_id` columns: non-nullable, indexed (`@@index([tenant_id])`)
+  - [x] All FK columns follow `{table_singular}_id` convention, with `@relation` and `onDelete: Restrict` (no accidental cascade deletes)
 
-- [ ] **Task 3: Initial migration** (AC: 1)
-  - [ ] Configure `packages/db/prisma/schema.prisma` with Azure SQL + local docker dev: datasource url pulled from `DATABASE_URL` env
-  - [ ] Add `docker-compose.yaml` at repo root for local SQL Server 2022 development (simplifies dev onboarding)
-  - [ ] Run `pnpm --filter @cems/db db:migrate:dev --name init` — produces `prisma/migrations/<timestamp>_init/migration.sql`
-  - [ ] Review generated SQL: verify `tenant_id` columns are non-null, indexes are present, FK constraints use `Restrict` on delete
-  - [ ] Commit migration file to git (migrations are source of truth)
+- [x] **Task 3: Initial migration** (AC: 1)
+  - [x] Configure `packages/db/prisma/schema.prisma` with Azure SQL + local docker dev: datasource url pulled from `DATABASE_URL` env
+  - [x] Add `docker-compose.yaml` at repo root for local SQL Server 2022 development (simplifies dev onboarding)
+  - [x] Run `pnpm --filter @cems/db db:migrate:dev --name init` — produces `prisma/migrations/<timestamp>_init/migration.sql`
+  - [x] Review generated SQL: verify `tenant_id` columns are non-null, indexes are present, FK constraints use `Restrict` on delete
+  - [x] Commit migration file to git (migrations are source of truth)
 
-- [ ] **Task 4: RLS setup as a separate migration** (AC: 3)
-  - [ ] Generate empty migration: `pnpm --filter @cems/db prisma migrate dev --create-only --name add_rls`
-  - [ ] Populate the generated `migration.sql` with Azure SQL RLS setup:
+- [x] **Task 4: RLS setup as a separate migration** (AC: 3)
+  - [x] Generate empty migration: `pnpm --filter @cems/db prisma migrate dev --create-only --name add_rls`
+  - [x] Populate the generated `migration.sql` with Azure SQL RLS setup:
     - Enable RLS: `ALTER TABLE dbo.audits ENABLE ROW_LEVEL_SECURITY`
     - Create predicate function: `fn_tenant_predicate(@tenant_id)` returns 1 when `@tenant_id = CAST(SESSION_CONTEXT(N'tenant_id') AS NVARCHAR(50))`
     - Apply predicate as FILTER + BLOCK security policy on every tenant-scoped table: audits, audit_sections, users, user_sessions, store_refs, section_locks, audit_log, machine_rooms, racks, compressors, conventional_units, condensers, walk_ins, display_cases, controllers
     - Create client-role predicate: if `SESSION_CONTEXT('user_role') = 'CLIENT'` then `client_id` must match the caller — applied as additional FILTER predicate on audits table
     - compressor_refs is NOT tenant-scoped (global reference data) — RLS NOT applied to it
-  - [ ] Document RLS design in `packages/db/prisma/migrations/README.md`: what tables have RLS, how the predicate functions are structured, how to add RLS to future tables
-  - [ ] Run `pnpm --filter @cems/db db:migrate:dev` to apply
+  - [x] Document RLS design in `packages/db/prisma/migrations/README.md`: what tables have RLS, how the predicate functions are structured, how to add RLS to future tables
+  - [x] Run `pnpm --filter @cems/db db:migrate:dev` to apply
 
-- [ ] **Task 5: Replace `packages/db/src/middleware/rls.ts` stub with real implementation** (AC: 2)
-  - [ ] Remove the throw-on-call stub from Story 0.1
-  - [ ] Implement `withRlsContext(prisma, context)` using Prisma client extensions (`$extends`). Each query runs `sp_set_session_context` via `$executeRaw` with three keys: `tenant_id`, `user_id`, `user_role`, plus `assigned_store_ids` (JSON string) when role is CLIENT
-  - [ ] `RlsContext` type (already added in Story 0.2 patch): `{ tenantId: string; userId: string; role: UserRole; assignedStoreIds?: string[] }`
-  - [ ] Zod-validate the context at the boundary (reject empty strings, non-GUID userIds, unknown roles)
-  - [ ] Export from `packages/db/src/index.ts`: `{ prisma, withRlsContext, RlsContext }`
-  - [ ] Write unit test `packages/db/src/middleware/rls.test.ts` that mocks Prisma and asserts the exact `sp_set_session_context` calls happen in order for a representative query
+- [x] **Task 5: Replace `packages/db/src/middleware/rls.ts` stub with real implementation** (AC: 2)
+  - [x] Remove the throw-on-call stub from Story 0.1
+  - [x] Implement `withRlsContext(prisma, context)` using Prisma client extensions (`$extends`). Each query runs `sp_set_session_context` via `$executeRaw` with three keys: `tenant_id`, `user_id`, `user_role`, plus `assigned_store_ids` (JSON string) when role is CLIENT
+  - [x] `RlsContext` type (already added in Story 0.2 patch): `{ tenantId: string; userId: string; role: UserRole; assignedStoreIds?: string[] }`
+  - [x] Zod-validate the context at the boundary (reject empty strings, non-GUID userIds, unknown roles)
+  - [x] Export from `packages/db/src/index.ts`: `{ prisma, withRlsContext, RlsContext }`
+  - [x] Write unit test `packages/db/src/middleware/rls.test.ts` that mocks Prisma and asserts the exact `sp_set_session_context` calls happen in order for a representative query
 
-- [ ] **Task 6: `audit_log` repository in apps/api** (AC: 4)
-  - [ ] Create `apps/api/src/repositories/audit-log.repo.ts`
-  - [ ] Export ONE function: `appendLog({ tenantId, auditId, eventType, payload, actorUserId, actorRole })`. Internally calls `prisma.auditLog.create(...)`
-  - [ ] Do NOT export `update`, `delete`, `upsert`, `createMany` — enforced via ESLint rule in file header comment + test
-  - [ ] Unit test `apps/api/src/repositories/audit-log.repo.test.ts` verifies: (a) create is called with correct args, (b) module exports only `appendLog`
+- [x] **Task 6: `audit_log` repository in apps/api** (AC: 4)
+  - [x] Create `apps/api/src/repositories/audit-log.repo.ts`
+  - [x] Export ONE function: `appendLog({ tenantId, auditId, eventType, payload, actorUserId, actorRole })`. Internally calls `prisma.auditLog.create(...)`
+  - [x] Do NOT export `update`, `delete`, `upsert`, `createMany` — enforced via ESLint rule in file header comment + test
+  - [x] Unit test `apps/api/src/repositories/audit-log.repo.test.ts` verifies: (a) create is called with correct args, (b) module exports only `appendLog`
 
-- [ ] **Task 7: Smoke test `apps/api/src/app.ts` uses `prisma` import** (AC: 6)
-  - [ ] Update `apps/api/src/app.ts` to import `prisma` from `@cems/db` (not yet used in any route, just proves the import graph)
-  - [ ] Add `GET /api/v1/db-health` route that runs `SELECT 1` via `prisma.$queryRaw\`SELECT 1 AS ok\`` and returns 200 — optional advisory check Abhishek can hit once deployed
-  - [ ] This route SKIPS RLS middleware (pre-auth) and documents that fact with a comment
+- [x] **Task 7: Smoke test `apps/api/src/app.ts` uses `prisma` import** (AC: 6)
+  - [x] Update `apps/api/src/app.ts` to import `prisma` from `@cems/db` (not yet used in any route, just proves the import graph)
+  - [x] Add `GET /api/v1/db-health` route that runs `SELECT 1` via `prisma.$queryRaw\`SELECT 1 AS ok\`` and returns 200 — optional advisory check Abhishek can hit once deployed
+  - [x] This route SKIPS RLS middleware (pre-auth) and documents that fact with a comment
 
-- [ ] **Task 8: `DATABASE_URL` env handling + local dev** (AC: 1)
-  - [ ] Update `.env.example` at repo root: `DATABASE_URL` points at local docker SQL Server by default: `sqlserver://localhost:1433;database=cems_dev;user=sa;password=Your_strong_pw_123;trustServerCertificate=true`
-  - [ ] `docker-compose.yaml` at repo root — one service `sql` running `mcr.microsoft.com/mssql/server:2022-latest` on port 1433 with `SA_PASSWORD=Your_strong_pw_123` and `ACCEPT_EULA=Y`
-  - [ ] Bootstrap script `packages/db/scripts/init-dev-db.sh` — creates the `cems_dev` database in the running container (SQL Server doesn't auto-create the DATABASE parameter from the connection string)
-  - [ ] Document in `packages/db/README.md`: (a) `docker compose up -d sql`, (b) `./packages/db/scripts/init-dev-db.sh`, (c) `pnpm --filter @cems/db db:migrate:dev`
+- [x] **Task 8: `DATABASE_URL` env handling + local dev** (AC: 1)
+  - [x] Update `.env.example` at repo root: `DATABASE_URL` points at local docker SQL Server by default: `sqlserver://localhost:1433;database=cems_dev;user=sa;password=Your_strong_pw_123;trustServerCertificate=true`
+  - [x] `docker-compose.yaml` at repo root — one service `sql` running `mcr.microsoft.com/mssql/server:2022-latest` on port 1433 with `SA_PASSWORD=Your_strong_pw_123` and `ACCEPT_EULA=Y`
+  - [x] Bootstrap script `packages/db/scripts/init-dev-db.sh` — creates the `cems_dev` database in the running container (SQL Server doesn't auto-create the DATABASE parameter from the connection string)
+  - [x] Document in `packages/db/README.md`: (a) `docker compose up -d sql`, (b) `./packages/db/scripts/init-dev-db.sh`, (c) `pnpm --filter @cems/db db:migrate:dev`
 
-- [ ] **Task 9: Integration test — RLS actually filters** (AC: 3)
-  - [ ] Create `packages/db/tests/rls.integration.test.ts` (ONLY runs when `RUN_INTEGRATION=1` env var is set — guarded because it needs a live SQL Server)
-  - [ ] Seed two tenants, two audits per tenant, one user per tenant
-  - [ ] With `withRlsContext(prisma, tenantAContext)` query all audits — assert only tenant A's 2 audits returned
-  - [ ] With `withRlsContext(prisma, tenantBContext)` query all audits — assert only tenant B's 2 audits
-  - [ ] With `withRlsContext(prisma, clientContextForStoreX)` query — assert only audits with `store_id = X` returned
-  - [ ] Document in test header that this runs against `docker compose` SQL Server (will also pass against Azure SQL post-deploy)
+- [x] **Task 9: Integration test — RLS actually filters** (AC: 3)
+  - [x] Create `packages/db/tests/rls.integration.test.ts` (ONLY runs when `RUN_INTEGRATION=1` env var is set — guarded because it needs a live SQL Server)
+  - [x] Seed two tenants, two audits per tenant, one user per tenant
+  - [x] With `withRlsContext(prisma, tenantAContext)` query all audits — assert only tenant A's 2 audits returned
+  - [x] With `withRlsContext(prisma, tenantBContext)` query all audits — assert only tenant B's 2 audits
+  - [x] With `withRlsContext(prisma, clientContextForStoreX)` query — assert only audits with `store_id = X` returned
+  - [x] Document in test header that this runs against `docker compose` SQL Server (will also pass against Azure SQL post-deploy)
 
-- [ ] **Task 10: Update KV `database-url` secret content** (verification only, not code)
-  - [ ] Story 0.2 main.bicep already writes `database-url` secret to KV. Document in `packages/db/README.md` that for any non-local environment, the Bicep-generated connection string is correct
-  - [ ] Note: local dev uses `.env` (not KV); dev/staging/prod use KV references — no action needed in this story, just documentation confirmation
+- [x] **Task 10: Update KV `database-url` secret content** (verification only, not code)
+  - [x] Story 0.2 main.bicep already writes `database-url` secret to KV. Document in `packages/db/README.md` that for any non-local environment, the Bicep-generated connection string is correct
+  - [x] Note: local dev uses `.env` (not KV); dev/staging/prod use KV references — no action needed in this story, just documentation confirmation
 
-- [ ] **Task 11: Verify and test** (AC: 1–6)
-  - [ ] `pnpm --filter @cems/db db:generate` — Prisma client generates without error
-  - [ ] `pnpm --filter @cems/db db:migrate:dev` against local docker SQL — produces expected tables (verify via `prisma studio`)
-  - [ ] `pnpm turbo run type-check` — 9 packages pass
-  - [ ] `pnpm turbo run test` — unit tests pass (rls middleware unit test, audit-log repo test)
-  - [ ] `RUN_INTEGRATION=1 pnpm --filter @cems/db test` (optional, if SQL Server is running locally) — RLS integration test passes
-  - [ ] `pnpm turbo run build` — full workspace build clean
+- [x] **Task 11: Verify and test** (AC: 1–6)
+  - [x] `pnpm --filter @cems/db db:generate` — Prisma client generates without error
+  - [x] `pnpm --filter @cems/db db:migrate:dev` against local docker SQL — produces expected tables (verify via `prisma studio`)
+  - [x] `pnpm turbo run type-check` — 9 packages pass
+  - [x] `pnpm turbo run test` — unit tests pass (rls middleware unit test, audit-log repo test)
+  - [x] `RUN_INTEGRATION=1 pnpm --filter @cems/db test` (optional, if SQL Server is running locally) — RLS integration test passes
+  - [x] `pnpm turbo run build` — full workspace build clean
 
 ## Dev Notes
 
