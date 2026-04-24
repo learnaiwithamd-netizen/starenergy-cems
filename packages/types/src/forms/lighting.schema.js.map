@@ -1,1 +1,0 @@
-{"version":3,"file":"lighting.schema.js","sourceRoot":"","sources":["lighting.schema.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,CAAC,EAAE,MAAM,KAAK,CAAA;AAEvB,MAAM,CAAC,MAAM,qBAAqB,GAAG,CAAC,CAAC,MAAM,CAAC;IAC5C,YAAY,EAAE,CAAC,CAAC,MAAM,EAAE,CAAC,GAAG,EAAE,CAAC,WAAW,EAAE,CAAC,QAAQ,EAAE;CACxD,CAAC,CAAA"}
