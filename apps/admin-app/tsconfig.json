@@ -4,7 +4,9 @@
     "baseUrl": ".",
     "paths": {
       "@cems/types": ["../../packages/types/src/index.ts"],
-      "@cems/ui": ["../../packages/ui/src/index.ts"]
+      "@cems/ui": ["../../packages/ui/src/index.ts"],
+      "@cems/db": ["../../packages/db/src/index.ts"],
+      "@cems/config/*": ["../../packages/config/*"]
     }
   },
   "include": ["src"]

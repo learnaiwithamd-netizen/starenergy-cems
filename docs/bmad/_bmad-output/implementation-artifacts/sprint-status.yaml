@@ -46,7 +46,7 @@ development_status:
   # Epic 0: Platform Foundation & Developer Infrastructure
   # ─────────────────────────────────────────────
   epic-0: in-progress
-  0-1-turborepo-monorepo-and-shared-package-scaffold: in-progress
+  0-1-turborepo-monorepo-and-shared-package-scaffold: review
   0-2-azure-infrastructure-provisioning: backlog
   0-3-database-schema-and-rls-foundation: backlog
   0-4-nodejs-api-foundation-and-job-queue-setup: backlog

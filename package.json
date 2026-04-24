@@ -2,6 +2,10 @@
   "name": "cems",
   "private": true,
   "packageManager": "pnpm@9.15.9",
+  "engines": {
+    "node": ">=22",
+    "pnpm": ">=9"
+  },
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
@@ -11,6 +15,6 @@
     "clean": "turbo run clean && rm -rf node_modules"
   },
   "devDependencies": {
-    "turbo": "^2.3.3"
+    "turbo": "2.9.6"
   }
 }
