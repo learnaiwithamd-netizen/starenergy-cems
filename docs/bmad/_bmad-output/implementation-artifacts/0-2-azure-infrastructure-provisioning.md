@@ -1,6 +1,6 @@
 # Story 0.2: Azure Infrastructure Provisioning
 
-Status: review
+Status: done
 
 ## Story
 
