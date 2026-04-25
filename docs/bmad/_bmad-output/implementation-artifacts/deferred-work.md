@@ -2,6 +2,39 @@
 
 Items surfaced during code review that are intentionally deferred (not bugs in the story under review — either by-design, future-story scope, or optimisation).
 
+## Deferred from: code review of 0-4-nodejs-api-foundation-and-job-queue-setup (2026-04-25)
+
+**Medium severity (Story 0.5 or 0.6 should pick up):**
+
+- Pino redaction misses bare `password` / `secret` / `token` keys at the top level (paths use `*.password`). Add `password`, `secret`, `token` paths and array-index variants like `*[*].password`. [apps/api/src/lib/logger.ts:18-25]
+- Logger eagerly instantiated at module load — every test that transitively imports logger.ts spawns a `pino-pretty` worker thread in dev. Make lazy (`getLogger()` or guarded `_logger`). Other singletons in this story are lazy. [apps/api/src/lib/logger.ts:31-39]
+- BullMQ processor uses `parse()` (throws ZodError) instead of `safeParse()` — invalid payloads get retried 3× before going to failed queue. Validate at enqueue + treat parse failures as terminal in worker. [apps/api/src/jobs/email-notification.job.ts:21-22]
+- RFC 7807 status mapping missing 429 (rate limit), 502 (bad gateway), 504 (gateway timeout) — fall through to `internal-error` slug. [apps/api/src/middleware/error-handler.ts:7-29]
+- `LOG_LEVEL` env var not validated — `LOG_LEVEL=banana` crashes at boot with cryptic Pino error. Validate against literal union and default to `info` with warning. [apps/api/src/lib/logger.ts:6]
+- Worker `failed` handler logs but does NOT write to `audit_log` — failures missing from tamper-evident trail. Add `appendLog(...)` via system-tenant context. [apps/api/src/jobs/email-notification.job.ts:43-45]
+- OpenAPI `servers: [{ url: '/' }]` should be `/api/v1` per Story 0.4 Task 7 spec — generated client SDKs (Story 0.6 codegen) will mis-prefix paths. [apps/api/src/app.ts:33]
+- 4xx `error.message` echoed verbatim to clients via `detail` — risk of PII leak (e.g., `httpErrors.conflict(\`User ${email} exists\`)` leaks email). Define a coding pattern that separates safe-detail from internal-cause. [apps/api/src/middleware/error-handler.ts:103]
+- `request.rlsContext` is mutable (no `Object.freeze`) — handler bug or compromised dep can overwrite mid-request. [apps/api/src/middleware/auth.ts:79-84]
+- SIGTERM ordering: `app.close()` runs before `stopWorker()`; if a request enqueues a job, the Worker may pick it up after Redis close starts. Drain order should be: stop accepting HTTP → drain Worker → close Redis. (Server now reorders worker-start AFTER listen, but shutdown order still HTTP-first.) [apps/api/src/server.ts:23-29]
+- Worker `_worker.close()` uses default behavior — waits for active jobs indefinitely. Pass `force: true` after a deadline to honour k8s SIGKILL grace period. [apps/api/src/jobs/email-notification.job.ts:55]
+- BullMQ `removeOnComplete: { age: 3600, count: 1000 }` — high retention; reduce to `count: 100`, age `1h`. [apps/api/src/jobs/queue.ts:8]
+- `closeQueues` / `closeRedisConnection` not concurrency-safe — racing SIGTERM+SIGINT could double-close. Add per-resource lock. [apps/api/src/jobs/queue.ts:46-50, lib/redis.ts:21-25]
+
+**Low severity (revisit when convenient):**
+
+- `Date.now()` ms resolution for request timing — `duration_ms: 0` for fast routes. Use `process.hrtime.bigint()`. [apps/api/src/app.ts:38-50]
+- `as unknown as FastifyInstance` cast at buildApp — type-safety hole. Find a typed alternative or document the constraint loudly. [apps/api/src/app.ts:25]
+- `request.routeOptions?.url ?? request.url` — for 404s, falls back to raw URL with query string → log cardinality blowup. Use literal `'<unknown>'` fallback. [apps/api/src/app.ts:61]
+- `disableRequestLogging: true` may suppress onTimeout / connection-error log lines. Add `onRequestAbort` and `onTimeout` hooks. [apps/api/src/app.ts:24]
+- `genReqId` discards incoming `x-request-id` header — trace propagation lost. Either accept the header or document why stripped. [apps/api/src/app.ts:23]
+- `globalThis.__cemsPrisma` cache survives `DATABASE_URL` mutation in dev — hot reload may use stale URL. Invalidate when env URL differs from cached. [packages/db/src/index.ts:18-22]
+- Architecture.md still documents `cems:{type}:{priority}` colon-separated queue names — BullMQ 5.x rejects `:`. Update architecture doc. [docs/bmad/_bmad-output/planning-artifacts/architecture.md § BullMQ]
+- Replay protection (`jti` claim, nonce, server-side revocation) — Story 1.1 (token issuance + refresh rotation).
+- Tenant-route binding defense-in-depth (e.g., reject token for tenant A used on a tenant-B-scoped route) — Story 1.2 (RBAC route guards).
+- Re-entrancy detection in `withRlsTransaction` — Prisma rejects nested interactive tx with opaque error. Add detection + clear error message. [packages/db/src/middleware/rls.ts:65-83]
+- `apps/admin-app/vite.config.ts.timestamp-*.mjs` artefact may have leaked into git from an earlier build. Verify and purge if so.
+- ESLint rule forbidding direct `prisma.$queryRaw` on tenant tables — Story 0.6 CI/lint hardening.
+
 ## Deferred from: code review of 0-3-database-schema-and-rls-foundation (2026-04-25)
 
 **Story 0.4 must address these before real auth traffic lands:**

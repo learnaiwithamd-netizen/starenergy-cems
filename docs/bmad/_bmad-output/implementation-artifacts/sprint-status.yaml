@@ -49,7 +49,7 @@ development_status:
   0-1-turborepo-monorepo-and-shared-package-scaffold: done
   0-2-azure-infrastructure-provisioning: done
   0-3-database-schema-and-rls-foundation: done
-  0-4-nodejs-api-foundation-and-job-queue-setup: ready-for-dev
+  0-4-nodejs-api-foundation-and-job-queue-setup: review
   0-5-python-calculation-service-scaffold: backlog
   0-6-ci-cd-pipeline: backlog
   0-7-design-tokens-and-shared-component-library: backlog

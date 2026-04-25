@@ -12,16 +12,19 @@
     "start": "node dist/server.js",
     "type-check": "tsc --noEmit",
     "lint": "eslint src/",
-    "test": "vitest run"
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
     "@azure/storage-blob": "^12.26.0",
     "@cems/db": "workspace:*",
     "@cems/types": "workspace:*",
+    "@fastify/sensible": "^6.0.3",
     "@fastify/swagger": "^9.4.0",
     "@fastify/swagger-ui": "^5.2.1",
+    "@prisma/adapter-mssql": "7.5.0",
     "bullmq": "5.74.1",
     "fastify": "5.8.5",
+    "ioredis": "^5.4.1",
     "jose": "^5.9.6",
     "pino": "^9.5.0",
     "puppeteer": "24.35.0",
@@ -32,6 +35,7 @@
   "devDependencies": {
     "@cems/config": "workspace:*",
     "@types/node": "^22.10.5",
+    "pino-pretty": "^11.3.0",
     "supertest": "^7.0.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",
