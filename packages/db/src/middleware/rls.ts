@@ -44,6 +44,30 @@ async function applySessionContext(
 }
 
 /**
+ * Best-effort reset of SESSION_CONTEXT before the connection returns to the pool.
+ * `sp_set_session_context` is NOT transactional in MSSQL — a partial set + tx rollback
+ * leaves the connection with stale values. Setting empty strings here on `finally`
+ * means the next request that pulls this connection from the pool sees empty context,
+ * which RLS predicates will treat as "no rows visible" instead of leaking another
+ * tenant's context.
+ *
+ * Wrapped in try/catch because the cleanup itself must not break the caller's flow.
+ */
+async function clearSessionContext(
+  client: { $executeRaw: PrismaClient['$executeRaw'] },
+): Promise<void> {
+  try {
+    await client.$executeRaw`EXEC sp_set_session_context @key = N'tenant_id', @value = N'', @read_only = 0`
+    await client.$executeRaw`EXEC sp_set_session_context @key = N'user_id', @value = N'', @read_only = 0`
+    await client.$executeRaw`EXEC sp_set_session_context @key = N'user_role', @value = N'', @read_only = 0`
+    await client.$executeRaw`EXEC sp_set_session_context @key = N'assigned_store_ids', @value = N'[]', @read_only = 0`
+  } catch {
+    // Cleanup best-effort. The connection may already be in error state — Prisma will
+    // mark it for discard. Swallow.
+  }
+}
+
+/**
  * RECOMMENDED: run a unit of tenant-scoped work inside a Prisma interactive transaction
  * with SESSION_CONTEXT pinned to the same connection.
  *
@@ -72,7 +96,14 @@ export async function withRlsTransaction<T>(
   return prisma.$transaction(
     async (tx) => {
       await applySessionContext(tx, ctx)
-      return fn(tx)
+      try {
+        return await fn(tx)
+      } finally {
+        // Reset SESSION_CONTEXT before the connection goes back to the pool. See
+        // clearSessionContext docstring — sp_set_session_context is NOT transactional
+        // in MSSQL, so context survives commit/rollback unless we explicitly clear.
+        await clearSessionContext(tx)
+      }
     },
     {
       isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,

@@ -4,9 +4,11 @@ import { UserRole } from '@cems/types'
 
 describe('audit-log.repo', () => {
   describe('public API shape', () => {
-    it('exports exactly one function: appendLog (append-only mandate)', () => {
-      const exports = Object.keys(auditLogRepo).filter((k) => typeof (auditLogRepo as Record<string, unknown>)[k] === 'function')
-      expect(exports).toEqual(['appendLog'])
+    it('exports only appendLog + appendLogFromRequest (append-only mandate)', () => {
+      const exports = Object.keys(auditLogRepo)
+        .filter((k) => typeof (auditLogRepo as Record<string, unknown>)[k] === 'function')
+        .sort()
+      expect(exports).toEqual(['appendLog', 'appendLogFromRequest'])
     })
 
     it('does NOT export update/delete/upsert/createMany (append-only mandate)', () => {
@@ -65,6 +67,57 @@ describe('audit-log.repo', () => {
       expect(callArg.data.auditId).toBe('audit-42')
       expect(callArg.data.actorUserId).toBe('user-99')
       expect(callArg.data.actorRole).toBe(UserRole.AUDITOR)
+    })
+  })
+
+  describe('appendLogFromRequest', () => {
+    it('throws when request.rlsContext is null', async () => {
+      const fakeReq = {
+        rlsContext: null,
+        withRls: vi.fn(),
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await expect(auditLogRepo.appendLogFromRequest(fakeReq as any, {
+        eventType: 'TEST',
+        payload: {},
+      })).rejects.toThrow(/rlsContext/)
+    })
+
+    it('runs appendLog inside req.withRls with tenant+actor pulled from rlsContext', async () => {
+      type CreateCall = { data: Record<string, unknown>; select: Record<string, boolean> }
+      const createSpy = vi.fn<(arg: CreateCall) => Promise<{ id: string; occurredAt: Date }>>(
+        async () => ({ id: 'log-3', occurredAt: new Date() }),
+      )
+      const fakeTx = { auditLog: { create: createSpy } }
+      const withRlsSpy = vi.fn(async (fn: (tx: typeof fakeTx) => Promise<unknown>) => fn(fakeTx))
+
+      const fakeReq = {
+        rlsContext: {
+          tenantId: 'tenant-from-ctx',
+          userId: 'user-from-ctx',
+          role: UserRole.ADMIN,
+          assignedStoreIds: [],
+        },
+        withRls: withRlsSpy,
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await auditLogRepo.appendLogFromRequest(fakeReq as any, {
+        eventType: 'AUDIT_PUBLISHED',
+        payload: { auditId: 'a-1' },
+        auditId: 'a-1',
+      })
+
+      expect(withRlsSpy).toHaveBeenCalledOnce()
+      const callArg = createSpy.mock.calls[0]![0]
+      expect(callArg.data).toEqual({
+        tenantId: 'tenant-from-ctx',
+        auditId: 'a-1',
+        eventType: 'AUDIT_PUBLISHED',
+        payload: JSON.stringify({ auditId: 'a-1' }),
+        actorUserId: 'user-from-ctx',
+        actorRole: UserRole.ADMIN,
+      })
     })
   })
 })

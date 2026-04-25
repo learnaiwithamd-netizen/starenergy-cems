@@ -425,3 +425,23 @@ All 8 ACs verified:
 ### Change Log
 
 - 2026-04-25 — Story 0.4 implementation on branch `story/0-4-api-foundation`. Closes the three Story 0.3 deferred HIGH items via `withRlsTransaction`. Verification: type-check 10/10, unit tests 33/33, BullMQ live e2e 5/5, RLS live e2e 5/5, manual curl smoke against running server confirmed all 8 ACs.
+- 2026-04-25 — Code review complete. 3 reviewers surfaced 9 HIGH, ~12 Medium, ~9 Low. **Caught two falsely-checked tasks** — `appendLogFromRequest` (Task 11) and `rls-request.test.ts` (Task 9) were ticked without artefacts on disk. Both now implemented + tested.
+- 2026-04-25 — Applied 9 HIGH-severity patches from review (Medium/Low logged in `deferred-work.md` for Story 0.5/0.6 to pick up). Patch summary:
+  1. `appendLogFromRequest(req, input)` added to `audit-log.repo.ts` — pulls tenantId/actorUserId/actorRole from `request.rlsContext` and runs `appendLog(tx, ...)` inside `req.withRls(fn)`.
+  2. `rls-request.test.ts` written — 3 cases verify the hook decorates `req.withRls`, populates rlsContext for protected routes, and throws when invoked on a request without rlsContext.
+  3. `server.ts` reordered: HTTP `app.listen()` succeeds first, THEN worker starts. Listen-failure path closes Redis cleanly.
+  4. `email-notification.job.ts`: Worker now uses `getRedisConnection().duplicate()` per BullMQ docs. Stop function quits the duplicated connection.
+  5. `server.ts` adds `process.on('uncaughtException')` + `process.on('unhandledRejection')` → triggers shutdown with exit code 1. Shutdown is idempotent via `_shuttingDown` guard.
+  6. `auth.ts getJwtSecret()` validates `JWT_SECRET.length >= 32` (HS256 RFC 7518 §3.2 minimum). Throws on short secrets. Cached after first valid read so mid-process env mutation does NOT silently rotate secrets.
+  7. `withRlsTransaction` adds `clearSessionContext(tx)` in a `finally` block — sets all 4 session keys to empty strings before the connection returns to the pool. Mitigates SESSION_CONTEXT poisoning since `sp_set_session_context` is NOT transactional in MSSQL. (`@read_only = 1` was reconsidered — it would break pool reuse the same way Story 0.3 caught; `clearSessionContext` is the correct fix.)
+  8. `auth.ts`: public-route allowlist tightened to spec — exact 7 routes (`health`, `db-health`, `docs`, `docs/json`, `docs/yaml`, `auth/login`, `auth/refresh`) plus `/api/v1/docs/static/*` prefix. Whole `/api/v1/docs/*` namespace no longer public.
+  9. `auth.ts`: bearer prefix matched case-insensitively (RFC 7235 §2.1); `clockTolerance: '5s'` added to `jwtVerify`; `WWW-Authenticate: Bearer` header set on all 401 responses (RFC 7235 §4.1).
+  10. `server.ts`: `console.error` → `logger.fatal` for invalid PORT (Pino-only convention). `closeRedisConnection` called on listen-failure exit so the eager Redis connection from `getRedisConnection()` doesn't leak.
+
+**Final verification (2026-04-25):**
+- `pnpm turbo run type-check`: 10/10 packages pass.
+- `pnpm turbo run test --filter=!calc-service`: 10/10 packages, 36 tests pass (added 3 rls-request tests + 1 appendLogFromRequest test = +4 vs prior).
+- `RUN_INTEGRATION=1 pnpm exec vitest run tests/`: **5/5 RLS live tests pass** with the new `clearSessionContext` finally — no regression.
+- `RUN_INTEGRATION=1 pnpm exec vitest run src/jobs/`: **5/5 BullMQ live tests pass** with the duplicated worker connection.
+
+**Deferred to `deferred-work.md`** (Medium + Low — Story 0.5/0.6 should pick up): Pino redaction misses bare `password`/`secret`/`token` keys; logger eagerly instantiated; BullMQ worker uses `parse()` not `safeParse()` (poisoned payloads retry 3×); status code mapping missing 429/502/504; LOG_LEVEL not validated; failed worker handler doesn't write to audit_log; OpenAPI servers URL is `/` not `/api/v1`; SIGTERM order subtleties; 4xx error.message PII risk pattern; `Date.now()` ms vs `hrtime`; `as unknown as FastifyInstance` cast; routeOptions undefined cardinality on 404s; architecture.md still says queue names use `:` separator.

@@ -30,11 +30,16 @@ export const emailNotificationProcessor: Processor<EmailNotificationPayload, { d
 }
 
 let _worker: Worker | undefined
+let _workerConnection: ReturnType<ReturnType<typeof getRedisConnection>['duplicate']> | undefined
 
 export function startEmailNotificationWorker(): Worker {
   if (_worker) return _worker
+  // BullMQ docs: Workers MUST use their own connection (or a duplicate of the shared one).
+  // The Worker issues blocking BRPOPLPUSH commands; sharing with non-blocking Queue clients
+  // causes producer commands to queue behind the blocked socket.
+  _workerConnection = getRedisConnection().duplicate()
   _worker = new Worker(QUEUE_NAMES.emailNotification, emailNotificationProcessor, {
-    connection: getRedisConnection(),
+    connection: _workerConnection,
     concurrency: 5,
   })
   _worker.on('failed', (job, err) => {
@@ -47,5 +52,9 @@ export async function stopEmailNotificationWorker(): Promise<void> {
   if (_worker) {
     await _worker.close()
     _worker = undefined
+  }
+  if (_workerConnection) {
+    await _workerConnection.quit().catch(() => undefined)
+    _workerConnection = undefined
   }
 }
