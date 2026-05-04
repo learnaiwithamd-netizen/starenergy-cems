@@ -21,7 +21,7 @@
     "@cems/types": "workspace:*",
     "@fastify/sensible": "^6.0.3",
     "@fastify/swagger": "^9.4.0",
-    "@fastify/swagger-ui": "^5.2.1",
+    "@fastify/swagger-ui": "^5.2.6",
     "@prisma/adapter-mssql": "7.5.0",
     "bullmq": "5.74.1",
     "fastify": "5.8.5",
