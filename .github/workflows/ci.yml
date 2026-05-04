@@ -236,7 +236,7 @@ jobs:
           skip_app_build: true
 
       - name: Sticky preview comment
-        uses: marocchino/sticky-pull-request-comment@v2
+        uses: marocchino/sticky-pull-request-comment@v3
         with:
           header: cems-preview-urls
           message: |
