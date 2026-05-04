@@ -25,7 +25,7 @@ importers:
         version: link:../../packages/ui
       '@hookform/resolvers':
         specifier: ^3.10.0
-        version: 3.10.0(react-hook-form@7.72.1(react@19.2.5))
+        version: 3.10.0(react-hook-form@7.75.0(react@19.2.5))
       '@tanstack/react-query':
         specifier: ^5.62.11
         version: 5.99.2(react@19.2.5)
@@ -36,8 +36,8 @@ importers:
         specifier: ^19.0.0
         version: 19.2.5(react@19.2.5)
       react-hook-form:
-        specifier: ^7.54.2
-        version: 7.72.1(react@19.2.5)
+        specifier: ^7.75.0
+        version: 7.75.0(react@19.2.5)
       react-router-dom:
         specifier: ^7.1.1
         version: 7.14.1(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
@@ -168,7 +168,7 @@ importers:
         version: link:../../packages/ui
       '@hookform/resolvers':
         specifier: ^3.10.0
-        version: 3.10.0(react-hook-form@7.72.1(react@19.2.5))
+        version: 3.10.0(react-hook-form@7.75.0(react@19.2.5))
       '@tanstack/react-query':
         specifier: ^5.62.11
         version: 5.99.2(react@19.2.5)
@@ -179,8 +179,8 @@ importers:
         specifier: ^19.0.0
         version: 19.2.5(react@19.2.5)
       react-hook-form:
-        specifier: ^7.54.2
-        version: 7.72.1(react@19.2.5)
+        specifier: ^7.75.0
+        version: 7.75.0(react@19.2.5)
       react-router-dom:
         specifier: ^7.1.1
         version: 7.14.1(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
@@ -234,7 +234,7 @@ importers:
         version: link:../../packages/ui
       '@hookform/resolvers':
         specifier: ^3.10.0
-        version: 3.10.0(react-hook-form@7.72.1(react@19.2.5))
+        version: 3.10.0(react-hook-form@7.75.0(react@19.2.5))
       '@tanstack/react-query':
         specifier: ^5.62.11
         version: 5.99.2(react@19.2.5)
@@ -245,8 +245,8 @@ importers:
         specifier: ^19.0.0
         version: 19.2.5(react@19.2.5)
       react-hook-form:
-        specifier: ^7.54.2
-        version: 7.72.1(react@19.2.5)
+        specifier: ^7.75.0
+        version: 7.75.0(react@19.2.5)
       react-router-dom:
         specifier: ^7.1.1
         version: 7.14.1(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
@@ -3073,8 +3073,8 @@ packages:
     peerDependencies:
       react: ^19.2.5
 
-  react-hook-form@7.72.1:
-    resolution: {integrity: sha512-RhwBoy2ygeVZje+C+bwJ8g0NjTdBmDlJvAUHTxRjTmSUKPYsKfMphkS2sgEMotsY03bP358yEYlnUeZy//D9Ig==}
+  react-hook-form@7.75.0:
+    resolution: {integrity: sha512-Ovv94H+0p3sJ7B9B5QxPuCP1u8V/cHuVGyH55cSwodYDtoJwK+fqk3vjfIgSX59I2U/bU4z0nRJ9HMLpNiWEmw==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       react: ^16.8.0 || ^17 || ^18 || ^19
@@ -3460,6 +3460,7 @@ packages:
 
   uuid@8.3.2:
     resolution: {integrity: sha512-+NYs2QeMWy+GWFOEm9xnn6HCDp0l7QBD7ml8zLUmJ+93Q5NF0NocErnwkTkXVFNiX3/fpC6afS8Dhb/gz7R7eg==}
+    deprecated: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
     hasBin: true
 
   valibot@1.2.0:
@@ -4340,9 +4341,9 @@ snapshots:
     dependencies:
       hono: 4.11.4
 
-  '@hookform/resolvers@3.10.0(react-hook-form@7.72.1(react@19.2.5))':
+  '@hookform/resolvers@3.10.0(react-hook-form@7.75.0(react@19.2.5))':
     dependencies:
-      react-hook-form: 7.72.1(react@19.2.5)
+      react-hook-form: 7.75.0(react@19.2.5)
 
   '@humanfs/core@0.19.2':
     dependencies:
@@ -6392,7 +6393,7 @@ snapshots:
       react: 19.2.5
       scheduler: 0.27.0
 
-  react-hook-form@7.72.1(react@19.2.5):
+  react-hook-form@7.75.0(react@19.2.5):
     dependencies:
       react: 19.2.5
 
