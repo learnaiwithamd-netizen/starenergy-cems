@@ -25,9 +25,9 @@ case "${ENV}" in
   prod)    SUFFIX='_PROD' ;;
 esac
 
-AUDIT_NAME="cems-${ENV}-audit-app"
-ADMIN_NAME="cems-${ENV}-admin-app"
-CLIENT_NAME="cems-${ENV}-client-portal"
+AUDIT_NAME="cems-${ENV}-swa-audit"
+ADMIN_NAME="cems-${ENV}-swa-admin"
+CLIENT_NAME="cems-${ENV}-swa-client"
 
 echo "Pulling SWA tokens from ${RG}..."
 AUDIT_TOKEN=$(az staticwebapp secrets list -n "${AUDIT_NAME}" -g "${RG}" --query properties.apiKey -o tsv)
