@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client'
+import { Prisma, PrismaClient } from '@prisma/client'
 import { z } from 'zod'
 import { UserRole } from '@cems/types'
 
@@ -22,38 +22,106 @@ export class RlsContextError extends Error {
   }
 }
 
-/**
- * Wrap a PrismaClient with an extension that sets SESSION_CONTEXT before every model query.
- *
- * Set BEFORE every query (not once per request) because Prisma's connection pool may return
- * a different connection between queries, and SESSION_CONTEXT is per-connection.
- *
- * ⚠️ LIMITATION (deferred to Story 0.4):
- * - The extension hooks only `$allModels.$allOperations`. Raw `$queryRaw` / `$executeRaw` calls
- *   BYPASS the middleware and run with whatever SESSION_CONTEXT happens to be on the pooled
- *   connection. Do NOT use raw queries on tenant-scoped tables until Story 0.4 wraps per-request
- *   execution in an interactive `$transaction` so the connection is pinned.
- * - The 4 `sp_set_session_context` EXECs + the actual query each acquire a connection from the
- *   pool independently. Under concurrency, SESSION_CONTEXT may land on connection A while the
- *   query runs on connection B. Story 0.4 addresses this with `withRlsTransaction(ctx, fn)`.
- *
-
- * Hardening NOT applied: `@read_only = 0` on tenant_id/user_id/user_role would prevent a
- * subsequent SQL-injection attempt from resetting user_role to ADMIN — BUT it also prevents
- * the middleware itself from re-setting the context on the NEXT query when the pool returns
- * the same connection to a different caller (second `sp_set_session_context` fails with
- * "key has been set as read_only"). The clean fix is per-request connection-affinity via
- * Story 0.4's `withRlsTransaction`. Until then, `@read_only = 0` is the correct trade-off.
- */
-export function withRlsContext<T extends PrismaClient>(prisma: T, context: RlsContext) {
-  const validated = rlsContextSchema.safeParse(context)
-  if (!validated.success) {
+function validate(context: RlsContext): RlsContext {
+  const result = rlsContextSchema.safeParse(context)
+  if (!result.success) {
     throw new RlsContextError(
-      `Invalid RlsContext: ${validated.error.errors.map((e) => `${e.path.join('.')}: ${e.message}`).join('; ')}`,
+      `Invalid RlsContext: ${result.error.errors.map((e) => `${e.path.join('.')}: ${e.message}`).join('; ')}`,
     )
   }
+  return result.data
+}
 
-  const ctx = validated.data
+async function applySessionContext(
+  client: { $executeRaw: PrismaClient['$executeRaw'] },
+  ctx: RlsContext,
+): Promise<void> {
+  const assignedStoreIdsJson = JSON.stringify(ctx.assignedStoreIds ?? [])
+  await client.$executeRaw`EXEC sp_set_session_context @key = N'tenant_id', @value = ${ctx.tenantId}, @read_only = 0`
+  await client.$executeRaw`EXEC sp_set_session_context @key = N'user_id', @value = ${ctx.userId}, @read_only = 0`
+  await client.$executeRaw`EXEC sp_set_session_context @key = N'user_role', @value = ${ctx.role}, @read_only = 0`
+  await client.$executeRaw`EXEC sp_set_session_context @key = N'assigned_store_ids', @value = ${assignedStoreIdsJson}, @read_only = 0`
+}
+
+/**
+ * Best-effort reset of SESSION_CONTEXT before the connection returns to the pool.
+ * `sp_set_session_context` is NOT transactional in MSSQL — a partial set + tx rollback
+ * leaves the connection with stale values. Setting empty strings here on `finally`
+ * means the next request that pulls this connection from the pool sees empty context,
+ * which RLS predicates will treat as "no rows visible" instead of leaking another
+ * tenant's context.
+ *
+ * Wrapped in try/catch because the cleanup itself must not break the caller's flow.
+ */
+async function clearSessionContext(
+  client: { $executeRaw: PrismaClient['$executeRaw'] },
+): Promise<void> {
+  try {
+    await client.$executeRaw`EXEC sp_set_session_context @key = N'tenant_id', @value = N'', @read_only = 0`
+    await client.$executeRaw`EXEC sp_set_session_context @key = N'user_id', @value = N'', @read_only = 0`
+    await client.$executeRaw`EXEC sp_set_session_context @key = N'user_role', @value = N'', @read_only = 0`
+    await client.$executeRaw`EXEC sp_set_session_context @key = N'assigned_store_ids', @value = N'[]', @read_only = 0`
+  } catch {
+    // Cleanup best-effort. The connection may already be in error state — Prisma will
+    // mark it for discard. Swallow.
+  }
+}
+
+/**
+ * RECOMMENDED: run a unit of tenant-scoped work inside a Prisma interactive transaction
+ * with SESSION_CONTEXT pinned to the same connection.
+ *
+ * - All four `sp_set_session_context` calls and every operation inside `fn` execute on
+ *   the SAME pooled connection (Prisma's interactive transaction pins the connection
+ *   for the lifetime of the callback).
+ * - `tx.$queryRaw` / `tx.$executeRaw` inside `fn` are SAFE — they share the
+ *   SESSION_CONTEXT set just before the callback runs.
+ * - Nested model operations also inherit the context (no per-op middleware needed).
+ *
+ * This is the production pattern for handling a request. Use this instead of
+ * `withRlsContext` for any code that touches tenant-scoped tables.
+ *
+ * Closes Story 0.3 review findings:
+ *   - Raw-query bypass (`$queryRaw` / `$executeRaw` skip the model-level middleware)
+ *   - Pool-interleaving race (4 EXECs + query may land on different pool connections)
+ *   - `$transaction` batch form skipping the model-level middleware
+ */
+export async function withRlsTransaction<T>(
+  prisma: PrismaClient,
+  context: RlsContext,
+  fn: (tx: Prisma.TransactionClient) => Promise<T>,
+  options?: { timeout?: number; maxWait?: number },
+): Promise<T> {
+  const ctx = validate(context)
+  return prisma.$transaction(
+    async (tx) => {
+      await applySessionContext(tx, ctx)
+      try {
+        return await fn(tx)
+      } finally {
+        // Reset SESSION_CONTEXT before the connection goes back to the pool. See
+        // clearSessionContext docstring — sp_set_session_context is NOT transactional
+        // in MSSQL, so context survives commit/rollback unless we explicitly clear.
+        await clearSessionContext(tx)
+      }
+    },
+    {
+      isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
+      timeout: options?.timeout ?? 10_000,
+      maxWait: options?.maxWait ?? 5_000,
+    },
+  )
+}
+
+/**
+ * @deprecated for tenant-scoped data access — use {@link withRlsTransaction} instead.
+ *
+ * Wraps a PrismaClient with an extension that sets SESSION_CONTEXT before every model query.
+ * Each query's 4 `sp_set_session_context` EXECs + the query itself may land on different
+ * pool connections. Use only for non-tenant-scoped operations or transitional code.
+ */
+export function withRlsContext<T extends PrismaClient>(prisma: T, context: RlsContext) {
+  const ctx = validate(context)
   const assignedStoreIdsJson = JSON.stringify(ctx.assignedStoreIds ?? [])
 
   return prisma.$extends({

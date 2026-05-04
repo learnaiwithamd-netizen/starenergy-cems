@@ -9,6 +9,10 @@ build/
 .next/
 out/
 
+# Vite transient timestamped configs (regenerated per build; should never be committed)
+**/vite.config.ts.timestamp-*.mjs
+**/vite.config.js.timestamp-*.mjs
+
 # Turborepo
 .turbo/
 

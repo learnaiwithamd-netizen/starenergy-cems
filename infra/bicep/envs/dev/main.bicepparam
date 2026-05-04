@@ -4,7 +4,7 @@ param env = 'dev'
 param location = 'canadacentral'
 
 // Replace with your Azure tenant id before deploying (deploy.sh validates this isn't the placeholder)
-param tenantId = '00000000-0000-0000-0000-000000000000'
+param tenantId = '73496e97-7769-4b4e-a5bf-e6efb3c445c0'
 
 // Non-overlapping VNet per env for future peering
 param vnetAddressPrefix = '10.10.0.0/16'
@@ -33,6 +33,9 @@ param containerAppsConfig = {
   minReplicas: 0
   maxReplicas: 1
 }
+
+param acrSku = 'Basic'
+param calcServiceImageTag = 'latest'
 
 param staticWebAppsLocation = 'eastus2'
 param appInsightsRetentionDays = 30

@@ -5,6 +5,8 @@ export interface PaginatedResponse<T> {
   pageSize: number
 }
 
+import { z } from 'zod'
+
 export interface ProblemDetail {
   type: string
   title: string
@@ -13,6 +15,19 @@ export interface ProblemDetail {
   instance?: string
   errors?: Array<{ field: string; message: string }>
 }
+
+export const problemDetailSchema = z.object({
+  type: z.string().url(),
+  title: z.string().min(1),
+  status: z.number().int().min(400).max(599),
+  detail: z.string(),
+  instance: z.string().optional(),
+  errors: z
+    .array(z.object({ field: z.string(), message: z.string() }))
+    .optional(),
+}) satisfies z.ZodType<ProblemDetail>
+
+export type ProblemDetailInput = z.infer<typeof problemDetailSchema>
 
 export type JobStatusValue = 'QUEUED' | 'PROCESSING' | 'COMPLETE' | 'FAILED'
 

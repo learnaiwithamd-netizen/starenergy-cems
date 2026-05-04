@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Invoice INV-2026-0503 — Star Energy Solutions Inc</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Segoe UI", Helvetica, Arial, sans-serif;
+      font-size: 13px;
+      color: #1e293b;
+      background: #f8fafc;
+    }
+
+    .page {
+      max-width: 860px;
+      margin: 40px auto;
+      background: #ffffff;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.10);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    /* ── Header bar ── */
+    .header {
+      background: #1F3A5F;
+      color: #ffffff;
+      padding: 36px 48px 28px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+    .header .company-block h1 {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+    .header .company-block p {
+      font-size: 11px;
+      opacity: 0.75;
+      margin-top: 4px;
+      line-height: 1.6;
+    }
+    .header .invoice-meta {
+      text-align: right;
+    }
+    .header .invoice-meta .invoice-label {
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      color: #7dd3b4;
+    }
+    .header .invoice-meta table {
+      margin-top: 8px;
+      font-size: 11px;
+      color: rgba(255,255,255,0.80);
+    }
+    .header .invoice-meta table td {
+      padding: 1px 0 1px 16px;
+    }
+    .header .invoice-meta table td:first-child {
+      padding-left: 0;
+      font-weight: 600;
+      color: rgba(255,255,255,0.55);
+      text-align: right;
+    }
+
+    /* ── Status badge ── */
+    .status-band {
+      background: #2A7F62;
+      color: #ffffff;
+      text-align: center;
+      padding: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+    }
+
+    /* ── Addresses ── */
+    .address-row {
+      display: flex;
+      gap: 24px;
+      padding: 32px 48px 24px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .address-block {
+      flex: 1;
+    }
+    .address-block .label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #94a3b8;
+      margin-bottom: 6px;
+    }
+    .address-block h3 {
+      font-size: 14px;
+      font-weight: 700;
+      color: #1F3A5F;
+      margin-bottom: 4px;
+    }
+    .address-block p {
+      font-size: 12px;
+      color: #475569;
+      line-height: 1.7;
+    }
+
+    /* ── Line items ── */
+    .items-section {
+      padding: 28px 48px 0;
+    }
+    .items-section h2 {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #94a3b8;
+      margin-bottom: 12px;
+    }
+
+    table.items {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    table.items thead tr {
+      background: #1F3A5F;
+      color: #ffffff;
+    }
+    table.items thead th {
+      padding: 10px 14px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-align: left;
+    }
+    table.items thead th.right { text-align: right; }
+
+    table.items tbody tr {
+      border-bottom: 1px solid #f1f5f9;
+    }
+    table.items tbody tr:nth-child(even) {
+      background: #f8fafc;
+    }
+    table.items tbody td {
+      padding: 11px 14px;
+      font-size: 12px;
+      vertical-align: top;
+    }
+    table.items tbody td.right { text-align: right; }
+    table.items tbody td .story-id {
+      display: inline-block;
+      background: #e0f2fe;
+      color: #0369a1;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 1px 6px;
+      border-radius: 4px;
+      margin-right: 6px;
+    }
+    table.items tbody td .desc {
+      color: #1e293b;
+      font-weight: 600;
+    }
+    table.items tbody td .subdesc {
+      font-size: 11px;
+      color: #64748b;
+      margin-top: 2px;
+    }
+
+    /* ── Totals ── */
+    .totals-section {
+      display: flex;
+      justify-content: flex-end;
+      padding: 20px 48px 28px;
+    }
+    .totals-table {
+      width: 320px;
+    }
+    .totals-table table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .totals-table table tr td {
+      padding: 6px 12px;
+      font-size: 12px;
+      color: #475569;
+    }
+    .totals-table table tr td:last-child {
+      text-align: right;
+    }
+    .totals-table table tr.subtotal td {
+      border-top: 1px solid #e2e8f0;
+      padding-top: 10px;
+    }
+    .totals-table table tr.fx td {
+      font-size: 11px;
+      color: #94a3b8;
+      font-style: italic;
+    }
+    .totals-table table tr.grand td {
+      background: #1F3A5F;
+      color: #ffffff;
+      font-size: 15px;
+      font-weight: 700;
+      padding: 12px 14px;
+      border-radius: 4px;
+    }
+
+    /* ── Notes ── */
+    .notes-section {
+      padding: 0 48px 28px;
+      border-top: 1px solid #e2e8f0;
+      margin-top: 4px;
+    }
+    .notes-section h3 {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #94a3b8;
+      margin: 18px 0 8px;
+    }
+    .notes-section p, .notes-section li {
+      font-size: 12px;
+      color: #475569;
+      line-height: 1.7;
+    }
+    .notes-section ul { padding-left: 16px; }
+
+    /* ── Bank details ── */
+    .bank-section {
+      margin: 0 48px 32px;
+      background: #f1f5f9;
+      border-left: 4px solid #2A7F62;
+      border-radius: 4px;
+      padding: 16px 20px;
+    }
+    .bank-section h3 {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #2A7F62;
+      margin-bottom: 10px;
+    }
+    .bank-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px 32px;
+    }
+    .bank-grid .row {
+      display: flex;
+      gap: 8px;
+      font-size: 11.5px;
+    }
+    .bank-grid .row .key {
+      color: #64748b;
+      min-width: 120px;
+      font-weight: 600;
+    }
+    .bank-grid .row .val {
+      color: #1e293b;
+      font-weight: 500;
+    }
+
+    /* ── Footer ── */
+    .footer {
+      background: #1F3A5F;
+      color: rgba(255,255,255,0.55);
+      text-align: center;
+      padding: 14px;
+      font-size: 11px;
+    }
+    .footer span {
+      color: rgba(255,255,255,0.80);
+      font-weight: 600;
+    }
+
+    /* ── Print ── */
+    @media print {
+      body { background: white; }
+      .page { box-shadow: none; margin: 0; border-radius: 0; }
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ── Header ── -->
+  <div class="header">
+    <div class="company-block">
+      <h1>Star Energy Solutions Inc</h1>
+      <p>
+        Carbon &amp; Energy Management Systems<br />
+        Canada<br />
+        <a href="mailto:learnaiwithamd@gmail.com" style="color:rgba(255,255,255,0.75);text-decoration:none;">learnaiwithamd@gmail.com</a>
+      </p>
+    </div>
+    <div class="invoice-meta">
+      <div class="invoice-label">INVOICE</div>
+      <table>
+        <tr><td>Invoice No.</td><td><strong style="color:#fff;">INV-2026-0503</strong></td></tr>
+        <tr><td>Issue Date</td><td>May 3, 2026</td></tr>
+        <tr><td>Due Date</td><td>May 17, 2026 (Net 14)</td></tr>
+        <tr><td>Currency</td><td>CAD (C$)</td></tr>
+        <tr><td>FX Rate</td><td>1 USD = 1.36 CAD</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="status-band">PAYMENT DUE — May 17, 2026</div>
+
+  <!-- ── Addresses ── -->
+  <div class="address-row">
+    <div class="address-block">
+      <div class="label">Bill From</div>
+      <h3>Star Energy Solutions Inc</h3>
+      <p>
+        Abhishek Mohan Dwivedi<br />
+        Carbon &amp; Energy Management Systems<br />
+        Canada
+      </p>
+    </div>
+    <div class="address-block">
+      <div class="label">Bill To</div>
+      <h3>Star Energy Solutions Inc</h3>
+      <p>
+        Client / Project Sponsor<br />
+        CEMS Development Project<br />
+        &nbsp;
+      </p>
+    </div>
+    <div class="address-block">
+      <div class="label">Project Reference</div>
+      <h3>CEMS MVP — Sprint 2</h3>
+      <p>
+        Platform Foundation Epic (Epic 0)<br />
+        Sprint Period: Apr 25 – May 2, 2026<br />
+        Stories Delivered: 0-3, 0-4, 0-5, 0-6
+      </p>
+    </div>
+  </div>
+
+  <!-- ── Line Items ── -->
+  <div class="items-section">
+    <h2>Services Rendered</h2>
+    <table class="items">
+      <thead>
+        <tr>
+          <th style="width:44%">Description</th>
+          <th class="right" style="width:10%">Hrs</th>
+          <th class="right" style="width:14%">Rate (USD)</th>
+          <th class="right" style="width:14%">Amount (USD)</th>
+          <th class="right" style="width:18%">Amount (CAD)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <span class="story-id">0-3</span>
+            <span class="desc">Database Schema &amp; RLS Foundation</span>
+            <div class="subdesc">Azure SQL schema design, Prisma ORM setup, Row-Level Security (RLS) policies, multi-tenant data isolation</div>
+          </td>
+          <td class="right">12.0</td>
+          <td class="right">$20.00</td>
+          <td class="right">$240.00</td>
+          <td class="right"><strong>C$326.40</strong></td>
+        </tr>
+        <tr>
+          <td>
+            <span class="story-id">0-4</span>
+            <span class="desc">Node.js API Foundation &amp; Job Queue Setup</span>
+            <div class="subdesc">Fastify 5 server, JWT auth middleware, RFC 7807 error handling, OpenAPI docs, BullMQ + Redis job queues, Pino structured logging</div>
+          </td>
+          <td class="right">12.0</td>
+          <td class="right">$20.00</td>
+          <td class="right">$240.00</td>
+          <td class="right"><strong>C$326.40</strong></td>
+        </tr>
+        <tr>
+          <td>
+            <span class="story-id">0-5</span>
+            <span class="desc">Python Calculation Service Scaffold</span>
+            <div class="subdesc">FastAPI + Python 3.12 calculation microservice, Azure Container Apps deployment, circuit-breaker Node.js client, Pydantic v2 models (ECM, baseline, refrigerant)</div>
+          </td>
+          <td class="right">8.0</td>
+          <td class="right">$20.00</td>
+          <td class="right">$160.00</td>
+          <td class="right"><strong>C$217.60</strong></td>
+        </tr>
+        <tr>
+          <td>
+            <span class="story-id">0-6</span>
+            <span class="desc">CI/CD Pipeline &amp; GitHub Actions</span>
+            <div class="subdesc">GitHub Actions CI/CD with OIDC federated auth, Turborepo remote cache, Azure slot-swap zero-downtime deploys, Prisma migrate gating, ESLint custom rule, OpenAPI drift check</div>
+          </td>
+          <td class="right">10.0</td>
+          <td class="right">$20.00</td>
+          <td class="right">$200.00</td>
+          <td class="right"><strong>C$272.00</strong></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ── Totals ── -->
+  <div class="totals-section">
+    <div class="totals-table">
+      <table>
+        <tr>
+          <td>Subtotal (42.0 hrs)</td>
+          <td>$840.00 USD</td>
+        </tr>
+        <tr class="fx">
+          <td>FX Conversion (× 1.36)</td>
+          <td>→ C$1,142.40</td>
+        </tr>
+        <tr class="fx">
+          <td>Taxes / GST</td>
+          <td>Not applicable</td>
+        </tr>
+        <tr class="subtotal">
+          <td>&nbsp;</td>
+          <td>&nbsp;</td>
+        </tr>
+        <tr class="grand">
+          <td>TOTAL DUE</td>
+          <td>C$1,142.40</td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── Bank / Payment Details ── -->
+  <div class="bank-section">
+    <h3>Payment Instructions — Bank Transfer</h3>
+    <div class="bank-grid">
+      <div class="row"><span class="key">Account Name</span><span class="val">Abhishek Mohan Dwivedi</span></div>
+      <div class="row"><span class="key">Bank</span><span class="val">ICICI Bank</span></div>
+      <div class="row"><span class="key">Account No.</span><span class="val">039901075843</span></div>
+      <div class="row"><span class="key">Account Type</span><span class="val">Savings</span></div>
+      <div class="row"><span class="key">IFSC Code</span><span class="val">ICIC0003472</span></div>
+      <div class="row"><span class="key">MMID</span><span class="val">9229684</span></div>
+      <div class="row"><span class="key">UPI / VPA</span><span class="val">abhishekd2604@icici</span></div>
+      <div class="row"><span class="key">Communication Address</span><span class="val">MIG-54, D-Sector, Near Jain Mandir, Ayodhya Nagar, Huzur, Bhopal, Madhya Pradesh — 462041</span></div>
+    </div>
+  </div>
+
+  <!-- ── Notes ── -->
+  <div class="notes-section">
+    <h3>Notes</h3>
+    <ul>
+      <li>All deliverables meet the acceptance criteria defined in the respective CEMS story files.</li>
+      <li>Payment is due within 14 days of invoice date. Late payments may attract interest at 1.5% per month.</li>
+      <li>Amount stated in Canadian Dollars (CAD) at the agreed exchange rate of 1 USD = 1.36 CAD.</li>
+      <li>Please quote invoice number <strong>INV-2026-0503</strong> in the payment reference.</li>
+    </ul>
+  </div>
+
+  <!-- ── Footer ── -->
+  <div class="footer">
+    Thank you for your business &mdash; <span>Star Energy Solutions Inc</span> &mdash; CEMS Development Services
+  </div>
+
+</div>
+</body>
+</html>

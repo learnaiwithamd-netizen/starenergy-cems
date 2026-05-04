@@ -1,0 +1,310 @@
+name: Deploy — staging
+
+on:
+  push:
+    branches:
+      - main
+
+# Deploys must NOT cancel each other — they queue.
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+  AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+  AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID_STAGING }}
+  AZURE_RG: cems-staging-rg
+  ACR_NAME: cemsacrstaging
+  ACR_REGISTRY: cemsacrstaging.azurecr.io
+  CALC_APP_NAME: cems-staging-calc
+  API_APP_NAME: cems-staging-api
+  KEY_VAULT_NAME: cems-staging-kv
+  PNPM_VERSION: 9.15.9
+  NODE_VERSION: '22'
+
+jobs:
+  build-images:
+    name: Build & push calc-service image
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      image_tag: ${{ steps.set-tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve image tag
+        id: set-tag
+        run: echo "tag=${GITHUB_SHA}" >>"$GITHUB_OUTPUT"
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: ACR login
+        run: az acr login --name "${ACR_NAME}"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build & push calc-service
+        uses: docker/build-push-action@v6
+        with:
+          context: apps/calc-service
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ env.ACR_REGISTRY }}/calc-service:${{ steps.set-tag.outputs.tag }}
+            ${{ env.ACR_REGISTRY }}/calc-service:latest
+          cache-from: type=gha,scope=calc-staging
+          cache-to: type=gha,scope=calc-staging,mode=max
+
+  migrate:
+    name: Prisma migrate deploy
+    needs: build-images
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Read DATABASE_URL from Key Vault
+        id: db-secret
+        run: |
+          DB_URL=$(az keyvault secret show --vault-name "${KEY_VAULT_NAME}" --name database-url --query value -o tsv)
+          echo "::add-mask::${DB_URL}"
+          echo "db_url=${DB_URL}" >>"$GITHUB_OUTPUT"
+
+      # `prisma migrate deploy` is idempotent — running it on every push is
+      # cheap (no-ops when no new migrations) and it's the only way to
+      # guarantee schema/code parity across squash, rebase, and merge-commit
+      # merge styles. The previous `git diff HEAD~1 HEAD -- migrations` gate
+      # missed migrations introduced by mid-PR commits on a multi-commit merge.
+      - name: Apply Prisma migrations (always; idempotent)
+        env:
+          DATABASE_URL: ${{ steps.db-secret.outputs.db_url }}
+        run: pnpm --filter @cems/db exec prisma migrate deploy
+
+  deploy-spas:
+    name: Deploy SPAs to Static Web Apps
+    needs: migrate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm turbo run build --filter=audit-app --filter=admin-app --filter=client-portal
+
+      - name: Deploy audit-app
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_SWA_AUDIT_TOKEN_STAGING }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: upload
+          app_location: apps/audit-app
+          output_location: dist
+          skip_app_build: true
+          production_branch: main
+
+      - name: Deploy admin-app
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_SWA_ADMIN_TOKEN_STAGING }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: upload
+          app_location: apps/admin-app
+          output_location: dist
+          skip_app_build: true
+          production_branch: main
+
+      - name: Deploy client-portal
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_SWA_CLIENT_TOKEN_STAGING }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: upload
+          app_location: apps/client-portal
+          output_location: dist
+          skip_app_build: true
+          production_branch: main
+
+  deploy-calc:
+    name: Activate calc-service revision
+    # Wait for migrations so a calc revision can never be activated against
+    # an old DB schema. Story 8 will start writing tenant data via the API,
+    # which depends on the migration completing first.
+    needs: [build-images, migrate]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Update Container App image (creates new revision)
+        run: |
+          az containerapp update \
+            --name "${CALC_APP_NAME}" \
+            --resource-group "${AZURE_RG}" \
+            --image "${ACR_REGISTRY}/calc-service:${{ needs.build-images.outputs.image_tag }}" \
+            --revision-suffix "${GITHUB_SHA::7}"
+
+      - name: Wait for new revision to be healthy
+        run: |
+          for _ in $(seq 1 30); do
+            STATE=$(az containerapp revision list \
+              -n "${CALC_APP_NAME}" -g "${AZURE_RG}" \
+              --query "[?contains(name, '${GITHUB_SHA::7}')].properties.healthState | [0]" -o tsv)
+            if [[ "${STATE}" == "Healthy" ]]; then
+              echo "Calc-service revision is healthy."
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::calc-service revision did not become healthy within 150s" >&2
+          exit 1
+
+  deploy-api:
+    name: Deploy API via slot swap
+    needs: [migrate, deploy-calc]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build API
+        run: pnpm --filter api build
+
+      - name: Package API for deploy
+        run: |
+          cd apps/api
+          zip -r ../../api.zip dist node_modules package.json
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy zip to staging slot
+        run: |
+          az webapp deploy \
+            --resource-group "${AZURE_RG}" \
+            --name "${API_APP_NAME}" \
+            --slot staging \
+            --src-path api.zip \
+            --type zip
+
+      - name: Health check on staging slot
+        run: |
+          STAGING_URL="https://${API_APP_NAME}-staging.azurewebsites.net/api/v1/health"
+          for _ in $(seq 1 18); do
+            if curl -fsS "${STAGING_URL}" >/dev/null 2>&1; then
+              echo "Staging slot is healthy."
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::API staging slot did not return 200 within 90s. Aborting swap." >&2
+          exit 1
+
+      - name: Slot swap → production
+        run: |
+          az webapp deployment slot swap \
+            --resource-group "${AZURE_RG}" \
+            --name "${API_APP_NAME}" \
+            --slot staging \
+            --target-slot production
+
+      - name: Smoke-test live production slot
+        id: smoke
+        continue-on-error: true
+        run: |
+          PROD_URL="https://${API_APP_NAME}.azurewebsites.net/api/v1/health"
+          for _ in $(seq 1 12); do
+            if curl -fsS "${PROD_URL}" >/dev/null 2>&1; then
+              echo "Live production slot is healthy."
+              exit 0
+            fi
+            sleep 5
+          done
+          exit 1
+
+      - name: Roll back on failed smoke test
+        if: steps.smoke.outcome == 'failure'
+        run: |
+          echo "::warning::Live slot health check failed. Swapping back."
+          az webapp deployment slot swap \
+            --resource-group "${AZURE_RG}" \
+            --name "${API_APP_NAME}" \
+            --slot production \
+            --target-slot staging
+          exit 1
+
+  health-check:
+    name: Final cross-service smoke
+    needs: [deploy-spas, deploy-api, deploy-calc]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Probe API
+        run: curl -fsS "https://${API_APP_NAME}.azurewebsites.net/api/v1/health"
+
+      - name: Probe API db-health
+        run: curl -fsS "https://${API_APP_NAME}.azurewebsites.net/api/v1/db-health"

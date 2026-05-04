@@ -21,6 +21,9 @@ param keyVaultName string
 @description('Subnet id for VNet integration (apps-subnet)')
 param appsSubnetId string
 
+@description('Calc service internal hostname (from Container Apps output, e.g. cems-dev-calc.{cae-default-domain})')
+param calcServiceFqdn string
+
 // Map SKU name → tier. Covers Basic / Standard / PremiumV2 / PremiumV3.
 // Unknown prefix defaults to Standard (safer than Basic).
 var skuTierMap = {
@@ -86,6 +89,10 @@ var sharedAppSettings = [
   {
     name: 'CLAUDE_API_KEY'
     value: '@Microsoft.KeyVault(SecretUri=${kvRef}/claude-api-key)'
+  }
+  {
+    name: 'CALC_SERVICE_URL'
+    value: 'http://${calcServiceFqdn}'
   }
 ]
 

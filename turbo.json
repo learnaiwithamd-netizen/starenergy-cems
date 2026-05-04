@@ -1,18 +1,53 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "globalDependencies": [
+    ".env.example",
+    "package.json",
+    "pnpm-lock.yaml",
+    "tsconfig*.json"
+  ],
+  "globalEnv": ["NODE_ENV", "CI"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
+      "inputs": [
+        "src/**",
+        "tsconfig*.json",
+        "package.json",
+        "vite.config.*",
+        "tsup.config.*"
+      ],
       "outputs": ["dist/**", ".next/**"]
     },
     "type-check": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build"],
+      "inputs": [
+        "src/**",
+        "tests/**",
+        "tsconfig*.json",
+        "package.json"
+      ]
     },
     "test": {
       "dependsOn": ["build"],
+      "inputs": [
+        "src/**",
+        "tests/**",
+        "vitest.config.*",
+        "pyproject.toml",
+        "package.json"
+      ],
       "outputs": ["coverage/**"]
     },
-    "lint": {},
+    "lint": {
+      "inputs": [
+        "src/**",
+        "*.{js,ts,tsx,jsx,mjs,cjs}",
+        "eslint.config.*",
+        ".eslintrc*",
+        "package.json"
+      ]
+    },
     "dev": {
       "cache": false,
       "persistent": true

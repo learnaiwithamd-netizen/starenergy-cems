@@ -1,0 +1,12 @@
+# CODEOWNERS — auto-request reviews from the team
+# Replace `@star-energy/cems-dev` with the actual GitHub team handle
+# (or convert to specific user handles) as part of the runbook walkthrough.
+
+* @star-energy/cems-dev
+
+# Tighter ownership for high-impact areas
+/.github/                    @star-energy/cems-dev
+/infra/                      @star-energy/cems-dev
+/packages/db/                @star-energy/cems-dev
+/apps/api/src/middleware/    @star-energy/cems-dev
+/apps/api/src/lib/calc-service-client.ts  @star-energy/cems-dev

@@ -10,6 +10,11 @@
   },
   "scripts": {
     "type-check": "echo 'no TS sources to check'",
-    "lint": "echo 'no JS sources to lint'"
+    "lint": "echo 'no JS sources to lint'",
+    "test": "node eslint/rules/no-tenant-raw-prisma.test.js"
+  },
+  "devDependencies": {
+    "eslint": "^9.18.0",
+    "typescript-eslint": "^8.20.0"
   }
 }

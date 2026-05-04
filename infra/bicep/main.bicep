@@ -37,6 +37,13 @@ param containerAppsConfig object = {
   maxReplicas: 1
 }
 
+@description('ACR SKU — Basic for dev, Standard for staging+prod')
+@allowed(['Basic', 'Standard', 'Premium'])
+param acrSku string = 'Basic'
+
+@description('Calc-service image tag pulled from ACR. Overridden by CI in Story 0.6.')
+param calcServiceImageTag string = 'latest'
+
 @description('VNet /16 prefix — MUST be non-overlapping across dev/staging/prod for peering')
 param vnetAddressPrefix string
 
@@ -79,6 +86,15 @@ param keyVaultSoftDeleteRetentionDays int = 30
 
 @description('Additional resource tags on top of the defaults')
 param extraTags object = {}
+
+@description('GitHub organisation / user that owns the source repo — used to scope OIDC federated credentials')
+param githubOrg string = 'star-energy'
+
+@description('GitHub repo name — used to scope OIDC federated credentials')
+param githubRepo string = 'cems'
+
+@description('Provision the GitHub OIDC federated identity. Set to false for the very first deploy (chicken-and-egg).')
+param enableGithubFederation bool = true
 
 var tags = union(
   {
@@ -230,6 +246,7 @@ module appService 'modules/appservice.bicep' = {
     planSku: appServicePlanSku
     keyVaultName: keyVault.outputs.keyVaultName
     appsSubnetId: network.outputs.appsSubnetId
+    calcServiceFqdn: containerApps.outputs.calcServiceFqdn
   }
   dependsOn: [
     databaseUrlSecret
@@ -249,6 +266,17 @@ module staticWebApps 'modules/staticwebapps.bicep' = {
   }
 }
 
+module acr 'modules/acr.bicep' = {
+  scope: rg
+  name: 'acr-${env}'
+  params: {
+    env: env
+    location: location
+    tags: tags
+    sku: acrSku
+  }
+}
+
 module containerApps 'modules/containerapps.bicep' = {
   scope: rg
   name: 'ca-${env}'
@@ -258,10 +286,63 @@ module containerApps 'modules/containerapps.bicep' = {
     tags: tags
     containersSubnetId: network.outputs.containersSubnetId
     logAnalyticsWorkspaceId: appInsights.outputs.logAnalyticsWorkspaceId
+    acrLoginServer: acr.outputs.acrLoginServer
+    imageTag: calcServiceImageTag
     cpu: containerAppsConfig.cpu
     memory: containerAppsConfig.memory
     minReplicas: containerAppsConfig.minReplicas
     maxReplicas: containerAppsConfig.maxReplicas
+  }
+}
+
+module calcAcrAccess 'modules/acrRoleAssignment.bicep' = {
+  scope: rg
+  name: 'acr-rbac-calc-${env}'
+  params: {
+    acrName: acr.outputs.acrName
+    principalId: containerApps.outputs.calcManagedIdentityPrincipalId
+  }
+}
+
+// ─── GitHub OIDC federated identity ────────────────────────────────────
+// Trust GitHub Actions workflows to mint short-lived tokens scoped by
+// claim (env, branch, PR). NO client secrets in the repo.
+module githubFederatedIdentity 'modules/githubFederatedIdentity.bicep' = if (enableGithubFederation) {
+  scope: rg
+  name: 'gh-fed-${env}'
+  params: {
+    env: env
+    location: location
+    tags: tags
+    githubOrg: githubOrg
+    githubRepo: githubRepo
+    // PR-triggered builds only push to the dev environment (preview SWAs).
+    // Staging/prod federated subjects must NEVER trust pull-request claims.
+    trustPullRequests: env == 'dev'
+  }
+}
+
+// Grant the GH MI AcrPush on the env's ACR so deploy workflows can push images.
+module githubAcrAccess 'modules/acrRoleAssignment.bicep' = if (enableGithubFederation) {
+  scope: rg
+  name: 'acr-rbac-gh-${env}'
+  params: {
+    acrName: acr.outputs.acrName
+    principalId: githubFederatedIdentity!.outputs.managedIdentityPrincipalId
+    // The shared module grants AcrPull by default; we want AcrPush for the
+    // GH identity so it can publish images. Pass an explicit role override.
+    roleDefinitionId: '8311e382-0749-4cb8-b61a-304f252e45ec' // AcrPush
+    roleName: 'acr-push'
+  }
+}
+
+// Grant the GH MI Key Vault Secrets User so the migrate job can read DATABASE_URL.
+module githubKvAccess 'modules/kvRoleAssignment.bicep' = if (enableGithubFederation) {
+  scope: rg
+  name: 'kv-rbac-gh-${env}'
+  params: {
+    keyVaultName: keyVault.outputs.keyVaultName
+    principalId: githubFederatedIdentity!.outputs.managedIdentityPrincipalId
   }
 }
 
@@ -301,3 +382,12 @@ output auditAppHostname string = staticWebApps.outputs.auditAppHostname
 output adminAppHostname string = staticWebApps.outputs.adminAppHostname
 output clientPortalHostname string = staticWebApps.outputs.clientPortalHostname
 output calcServiceFqdn string = containerApps.outputs.calcServiceFqdn
+output acrLoginServer string = acr.outputs.acrLoginServer
+output acrName string = acr.outputs.acrName
+
+// GitHub OIDC managed-identity client id — paste this into the
+// AZURE_CLIENT_ID repo variable (or AZURE_CLIENT_ID_PROD for prod).
+// Empty when enableGithubFederation == false (bootstrap path).
+output githubManagedIdentityClientId string = enableGithubFederation
+  ? githubFederatedIdentity!.outputs.managedIdentityClientId
+  : ''
