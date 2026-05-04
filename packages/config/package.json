@@ -14,7 +14,7 @@
     "test": "node eslint/rules/no-tenant-raw-prisma.test.js"
   },
   "devDependencies": {
-    "eslint": "^9.18.0",
+    "eslint": "^10.3.0",
     "typescript-eslint": "^8.20.0"
   }
 }
