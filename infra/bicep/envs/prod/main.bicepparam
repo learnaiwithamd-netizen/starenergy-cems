@@ -3,7 +3,7 @@ using '../../main.bicep'
 param env = 'prod'
 param location = 'canadacentral'
 
-param tenantId = '00000000-0000-0000-0000-000000000000'
+param tenantId = '73496e97-7769-4b4e-a5bf-e6efb3c445c0'
 
 // Non-overlapping VNet per env for future peering
 param vnetAddressPrefix = '10.30.0.0/16'
@@ -32,6 +32,9 @@ param containerAppsConfig = {
   minReplicas: 1
   maxReplicas: 10
 }
+
+param acrSku = 'Standard'
+param calcServiceImageTag = 'latest'
 
 param staticWebAppsLocation = 'eastus2'
 param appInsightsRetentionDays = 90

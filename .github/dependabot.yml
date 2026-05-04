@@ -1,0 +1,44 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    groups:
+      eslint:
+        patterns:
+          - 'eslint*'
+          - 'typescript-eslint'
+          - '@eslint/*'
+          - '@typescript-eslint/*'
+      fastify:
+        patterns:
+          - 'fastify'
+          - '@fastify/*'
+      prisma:
+        patterns:
+          - 'prisma'
+          - '@prisma/*'
+
+  - package-ecosystem: pip
+    directory: /apps/calc-service
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: docker
+    directory: /apps/calc-service
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3

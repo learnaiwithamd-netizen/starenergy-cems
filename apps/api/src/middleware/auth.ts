@@ -113,12 +113,12 @@ export function registerAuthHook(app: FastifyInstance): void {
       throw app.httpErrors.unauthorized('Token claims invalid')
     }
 
-    request.rlsContext = {
+    request.rlsContext = Object.freeze({
       tenantId: claims.data.tenantId,
       userId: claims.data.sub,
       role: claims.data.role,
-      assignedStoreIds: claims.data.assignedStoreIds,
-    }
+      assignedStoreIds: Object.freeze([...claims.data.assignedStoreIds]),
+    }) as RlsContext
   })
 }
 

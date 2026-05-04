@@ -1,6 +1,6 @@
 # Story 0.4: Node.js API Foundation & Job Queue Setup
 
-Status: review
+Status: done
 
 ## Story
 
@@ -445,3 +445,42 @@ All 8 ACs verified:
 - `RUN_INTEGRATION=1 pnpm exec vitest run src/jobs/`: **5/5 BullMQ live tests pass** with the duplicated worker connection.
 
 **Deferred to `deferred-work.md`** (Medium + Low — Story 0.5/0.6 should pick up): Pino redaction misses bare `password`/`secret`/`token` keys; logger eagerly instantiated; BullMQ worker uses `parse()` not `safeParse()` (poisoned payloads retry 3×); status code mapping missing 429/502/504; LOG_LEVEL not validated; failed worker handler doesn't write to audit_log; OpenAPI servers URL is `/` not `/api/v1`; SIGTERM order subtleties; 4xx error.message PII risk pattern; `Date.now()` ms vs `hrtime`; `as unknown as FastifyInstance` cast; routeOptions undefined cardinality on 404s; architecture.md still says queue names use `:` separator.
+
+### Review Findings (2026-04-28 — second-pass review)
+
+Three reviewers (Blind Hunter, Edge Case Hunter, Acceptance Auditor) ran a fresh pass over the merged diff after the first review's 9 HIGH patches. ~80 raw findings → ~20 unique after dedup. All 8 ACs re-verified met. Patches applied + remainder deferred.
+
+**Patches applied:**
+
+- [x] [Review][Patch] Vite timestamp build artefact `apps/admin-app/vite.config.ts.timestamp-1777104053652-f47d26cefd8568.mjs` removed from git + `**/vite.config.ts.timestamp-*.mjs` glob added to `.gitignore` (was committed by accident; embeds dev-machine paths).
+- [x] [Review][Patch] `request.rlsContext` is now `Object.freeze`d (and `assignedStoreIds` array also frozen) in `auth.ts` — handler bug or compromised dep can no longer overwrite tenantId mid-request.
+- [x] [Review][Patch] `problemDetailSchema` Zod schema added to `packages/types/src/api.ts` (+ exported via barrel) — closes false-checked Task 6 sub-bullet ("Define a `ProblemDetail` Zod schema").
+- [x] [Review][Patch] OpenAPI `servers` URL: `/` → `/api/v1` in `app.ts` — closes false-checked Task 7 sub-bullet (+ removes corresponding deferred-work entry).
+
+**Patches considered + reverted:**
+
+- [Review][Reverted] Making `instance` required in `ProblemDetail` interface — broke 3 frontend api-clients with permissive parsers; RFC 7807 itself treats `instance` as optional, so the optional type is correct. Auditor finding F5 reclassified as won't-fix.
+
+**Newly deferred to `deferred-work.md`** (under "Deferred from: code review of 0-4 (2026-04-28)"):
+
+- [x] [Review][Defer] JWT validation does not enforce `iss`/`aud` claims — Story 1.1 token issuance scope.
+- [x] [Review][Defer] `getJwtSecret()` cache retains plaintext secret bytes in module memory — defense-in-depth tradeoff; revisit when KMS/Key Vault SDK is wired.
+- [x] [Review][Defer] `req.withRls` decorator default `null` — calls on public/auth-failed routes throw `TypeError` instead of a clean error. Replace with sentinel function in Story 0.5.
+- [x] [Review][Defer] `PUBLIC_STATIC_PREFIX` prefix-match could broaden public surface if swagger-ui ever serves new content under `/static/`. Story 0.6 hardening.
+- [x] [Review][Defer] `isPublicRoute` matches `request.url` (not `request.routeOptions.url` per Task 4 wording). Functionally equivalent for current allowlist; revisit when route patterns expand.
+- [x] [Review][Defer] `JWT_SECRET` length validation is per-request (throws inside `getJwtSecret()`). A boot-time check in `server.ts` would fail-fast. Story 0.6 boot-validation pass.
+- [x] [Review][Defer] `Authorization` header could arrive as `string[]` (Fastify type allows it). `.replace` would throw. Story 1.1 auth tightening.
+- [x] [Review][Defer] `assignedStoreIds` has no `.max(N)` cap — large arrays could exceed MSSQL `session_context` 256KB limit. Story 1.1.
+- [x] [Review][Defer] BullMQ `removeOnFail: { age: 86400 }` has no `count` cap — failed-job storm could OOM Redis. Story 0.6 ops hardening.
+- [x] [Review][Defer] `clearSessionContext` runs in `finally` after rolled-back transaction — MSSQL may abort the cleanup `EXEC` since `sp_set_session_context` is non-transactional. Document and revisit.
+- [x] [Review][Defer] `clearSessionContext` uses empty-string `''` for `tenant_id`/`user_id` — adopt sentinel like `__cleared__` to defend against any tenant accidentally provisioned with empty id.
+- [x] [Review][Defer] Error handler does not check `reply.sent` before `reply.code(...).send(...)`. Edge: error after early reply double-sends. Story 0.6.
+- [x] [Review][Defer] `ZodError.path` joins to empty string for root-level errors — `field: ''` in `errors[]` confuses clients. Cosmetic.
+- [x] [Review][Defer] `fastifySchemaFromZod` uses Ajv on derived JSON Schema while handlers can `.safeParse` directly with Zod — two-validator drift. Architectural call; revisit if observed in practice.
+- [x] [Review][Defer] `OPTIONS` preflight on protected routes returns 401 (no CORS). Story 1.1 CORS wiring.
+- [x] [Review][Defer] `db-health` raw `$queryRaw` throws on DB-unreachable → 500 instead of `{db:'unreachable'}` per spec. Wrap in try/catch. Story 0.6 health check polish.
+
+**Verification (2026-04-28):**
+- `pnpm turbo run type-check` → 10/10 packages pass.
+- `pnpm turbo run test --filter=api --filter=@cems/db --filter=@cems/types` → 38 api tests pass + 9 db tests pass + 1 skipped (integration gated).
+- All 8 ACs remain met. The 9 prior HIGH patches are intact.

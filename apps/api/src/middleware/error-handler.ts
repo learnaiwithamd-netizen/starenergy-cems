@@ -1,6 +1,7 @@
 import type { FastifyError, FastifyReply, FastifyRequest } from 'fastify'
 import type { ProblemDetail } from '@cems/types'
 import { ZodError } from 'zod'
+import { CalcServiceError } from '../lib/calc-service-client.js'
 
 const PROBLEM_BASE = 'https://cems.starenergy.ca/errors'
 
@@ -58,6 +59,21 @@ export function buildErrorHandler() {
     reply: FastifyReply,
   ): void {
     const instance = request.url
+
+    // Calc-service failures → 503 (timeout / breaker open / upstream error / bad response).
+    if (error instanceof CalcServiceError) {
+      const problem = buildProblemDetail(
+        503,
+        'Calculation service is unavailable',
+        instance,
+      )
+      request.log.error(
+        { err: error, code: error.code, upstreamStatus: error.upstreamStatus, request_id: request.id },
+        'calc-service error',
+      )
+      reply.code(503).type('application/problem+json').send(problem)
+      return
+    }
 
     // Zod validation error → 422 with errors[]
     if (error instanceof ZodError) {

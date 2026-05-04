@@ -12,7 +12,8 @@
     "start": "node dist/server.js",
     "type-check": "tsc --noEmit",
     "lint": "eslint src/",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "calc-schemas:check": "../../scripts/check-calc-schemas.sh"
   },
   "dependencies": {
     "@azure/storage-blob": "^12.26.0",
@@ -26,6 +27,7 @@
     "fastify": "5.8.5",
     "ioredis": "^5.4.1",
     "jose": "^5.9.6",
+    "opossum": "^8.4.0",
     "pino": "^9.5.0",
     "puppeteer": "24.35.0",
     "resend": "^4.0.1",
@@ -35,6 +37,7 @@
   "devDependencies": {
     "@cems/config": "workspace:*",
     "@types/node": "^22.10.5",
+    "@types/opossum": "^8.1.8",
     "pino-pretty": "^11.3.0",
     "supertest": "^7.0.0",
     "tsx": "^4.19.2",

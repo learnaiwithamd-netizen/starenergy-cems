@@ -4,12 +4,12 @@ import swagger from '@fastify/swagger'
 import swaggerUI from '@fastify/swagger-ui'
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
-import { prisma } from '@cems/db'
 import { logger } from './lib/logger.js'
 import { fastifySchemaFromZod } from './lib/schema.js'
 import { buildErrorHandler } from './middleware/error-handler.js'
 import { registerAuthHook } from './middleware/auth.js'
 import { registerRlsRequestHook } from './middleware/rls-request.js'
+import { registerDbHealthRoute } from './routes/db-health.js'
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -30,7 +30,7 @@ export async function buildApp(): Promise<FastifyInstance> {
     openapi: {
       openapi: '3.0.3',
       info: { title: 'CEMS API', version: '0.0.1' },
-      servers: [{ url: '/' }],
+      servers: [{ url: '/api/v1' }],
       components: {
         securitySchemes: {
           bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
@@ -85,30 +85,7 @@ export async function buildApp(): Promise<FastifyInstance> {
     async () => ({ status: 'ok' as const }),
   )
 
-  /**
-   * db-health: proves the @cems/db import path works end-to-end.
-   *
-   * ⚠️  NEVER read tenant-scoped tables from this route. It runs raw `$queryRaw`
-   * without going through `withRlsTransaction`, so SESSION_CONTEXT from a prior
-   * pooled-connection user may still be set. `SELECT 1` is safe — it touches no
-   * tenant data.
-   */
-  app.get(
-    '/api/v1/db-health',
-    {
-      schema: fastifySchemaFromZod({
-        tags: ['health'],
-        summary: 'Readiness probe — confirms DB reachability via SELECT 1. NEVER read tenant data here.',
-        response: {
-          200: z.object({ status: z.literal('ok'), db: z.enum(['connected', 'unreachable']) }),
-        },
-      }),
-    },
-    async () => {
-      const result = await prisma.$queryRaw<Array<{ ok: number }>>`SELECT 1 AS ok`
-      return { status: 'ok' as const, db: result[0]?.ok === 1 ? ('connected' as const) : ('unreachable' as const) }
-    },
-  )
+  registerDbHealthRoute(app)
 
   return app
 }

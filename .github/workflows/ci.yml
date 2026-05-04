@@ -1,0 +1,249 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+  actions: read
+
+env:
+  PNPM_VERSION: 9.15.9
+  NODE_VERSION: '22'
+  PYTHON_VERSION: '3.12'
+
+jobs:
+  lint-test-build:
+    name: lint / type-check / test / build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Need depth >=2 so turbo's `--filter=...[origin/main]` can resolve the merge base.
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: apps/calc-service/requirements.txt
+
+      - name: Detect calc-service changes
+        id: calc-changed
+        run: |
+          if git diff --name-only origin/main...HEAD | grep -E '^apps/calc-service/' >/dev/null; then
+            echo "changed=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >>"$GITHUB_OUTPUT"
+          fi
+
+      - name: Install Node deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Install calc-service Python deps
+        if: steps.calc-changed.outputs.changed == 'true'
+        run: pip install -r apps/calc-service/requirements.txt
+
+      - name: Setup Turborepo Remote Cache (GitHub Actions cache backend)
+        uses: dtinth/setup-github-actions-caching-for-turbo@v1
+
+      - name: Run lint / type-check / test / build (filtered to changed packages)
+        env:
+          # Resolves to e.g. `main` for PRs into main; allows non-main base
+          # branches (release/x, integration branches) to compute the right diff.
+          BASE_REF: ${{ github.base_ref || 'main' }}
+        run: |
+          pnpm turbo run lint type-check test build \
+            "--filter=...[origin/${BASE_REF}]" \
+            --output-logs=errors-only
+
+      - name: Upload coverage on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ github.run_id }}
+          path: |
+            apps/*/coverage/**
+            packages/*/coverage/**
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # Pydantic ↔ Zod schema drift gate. Only runs when calc models or the
+  # Zod mirror changed; otherwise short-circuits as a no-op success.
+  calc-schema-parity:
+    name: calc-service schema parity (Pydantic ↔ Zod)
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    needs: lint-test-build
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect schema changes
+        id: changed
+        run: |
+          if git diff --name-only origin/main...HEAD | \
+             grep -E '^(apps/calc-service/app/models/|apps/api/src/lib/calc-service-schemas\.ts)' >/dev/null; then
+            echo "changed=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >>"$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup pnpm
+        if: steps.changed.outputs.changed == 'true'
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node
+        if: steps.changed.outputs.changed == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Setup Python
+        if: steps.changed.outputs.changed == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: apps/calc-service/requirements.txt
+
+      - name: Install deps
+        if: steps.changed.outputs.changed == 'true'
+        run: |
+          pnpm install --frozen-lockfile
+          pip install -r apps/calc-service/requirements.txt
+
+      - name: Boot calc-service in background
+        if: steps.changed.outputs.changed == 'true'
+        run: |
+          cd apps/calc-service
+          uvicorn app.main:app --host 127.0.0.1 --port 8000 &
+          for _ in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8000/health >/dev/null 2>&1; then exit 0; fi
+            sleep 1
+          done
+          echo "::error::calc-service did not become healthy within 30s"
+          exit 1
+
+      - name: Fetch OpenAPI spec
+        if: steps.changed.outputs.changed == 'true'
+        run: curl -fsS http://127.0.0.1:8000/openapi.json -o /tmp/openapi.json
+
+      - name: Compare Zod schemas to Pydantic shape
+        if: steps.changed.outputs.changed == 'true'
+        run: node scripts/compare-zod-shape.mjs /tmp/openapi.json apps/api/src/lib/calc-service-schemas.ts
+
+  actionlint:
+    name: actionlint workflows
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run actionlint
+        uses: rhysd/actionlint@v1
+        with:
+          fail_on_error: true
+
+  swa-preview:
+    name: SWA preview deploys
+    needs: lint-test-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Build all frontend apps
+        run: pnpm turbo run build --filter=audit-app --filter=admin-app --filter=client-portal
+
+      - name: Deploy audit-app preview
+        id: deploy-audit
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_SWA_AUDIT_TOKEN }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: upload
+          app_location: apps/audit-app
+          output_location: dist
+          skip_app_build: true
+
+      - name: Deploy admin-app preview
+        id: deploy-admin
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_SWA_ADMIN_TOKEN }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: upload
+          app_location: apps/admin-app
+          output_location: dist
+          skip_app_build: true
+
+      - name: Deploy client-portal preview
+        id: deploy-client
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_SWA_CLIENT_TOKEN }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: upload
+          app_location: apps/client-portal
+          output_location: dist
+          skip_app_build: true
+
+      - name: Sticky preview comment
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: cems-preview-urls
+          message: |
+            🚀 **Preview deploys for `${{ github.event.pull_request.head.sha }}`**
+
+            | App | Preview URL |
+            |-----|-------------|
+            | audit-app | ${{ steps.deploy-audit.outputs.static_web_app_url }} |
+            | admin-app | ${{ steps.deploy-admin.outputs.static_web_app_url }} |
+            | client-portal | ${{ steps.deploy-client.outputs.static_web_app_url }} |

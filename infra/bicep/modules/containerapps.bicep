@@ -17,8 +17,14 @@ param containersSubnetId string
 @description('Log Analytics workspace id for diagnostics')
 param logAnalyticsWorkspaceId string
 
-@description('Container image (placeholder until Story 0.5 ships calc-service image)')
-param image string = 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
+@description('ACR login server (e.g. cemsacrdev.azurecr.io) — set by main.bicep from acr.bicep output')
+param acrLoginServer string
+
+@description('Image tag to pull from ACR (overridden by CI in Story 0.6)')
+param imageTag string = 'latest'
+
+@description('Override container image. Defaults to {acrLoginServer}/calc-service:{imageTag}.')
+param image string = '${acrLoginServer}/calc-service:${imageTag}'
 
 @description('CPU cores')
 param cpu string = '0.25'
@@ -92,6 +98,12 @@ resource calcApp 'Microsoft.App/containerApps@2025-01-01' = {
           }
         ]
       }
+      registries: [
+        {
+          server: acrLoginServer
+          identity: 'system'
+        }
+      ]
       activeRevisionsMode: 'Single'
     }
     template: {
@@ -103,6 +115,16 @@ resource calcApp 'Microsoft.App/containerApps@2025-01-01' = {
             cpu: json(cpu)
             memory: memory
           }
+          env: [
+            {
+              name: 'CEMS_ENV'
+              value: env
+            }
+            {
+              name: 'LOG_LEVEL'
+              value: 'INFO'
+            }
+          ]
           probes: [
             {
               type: 'Liveness'
