@@ -41,8 +41,8 @@ param appInsightsRetentionDays = 90
 
 param sqlAdminPassword = readEnvironmentVariable('CEMS_SQL_ADMIN_PASSWORD', 'REPLACE_BEFORE_DEPLOY_use_deploy.sh_with_env_var')
 
-// Staging mirrors prod: no "Allow Azure services", no dev IP allowlist, VNet-only
-param enableSqlAllowAzureServices = false
+// Allow Azure services so GitHub Actions runners can run Prisma migrations
+param enableSqlAllowAzureServices = true
 param sqlFirewallIpRanges = []
 
 // Threat detection ON
