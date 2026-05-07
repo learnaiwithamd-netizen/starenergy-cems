@@ -2,7 +2,7 @@ import type { FastifyError, FastifyReply, FastifyRequest } from 'fastify'
 import type { ProblemDetail } from '@cems/types'
 import { ZodError } from 'zod'
 import { CalcServiceError } from '../lib/calc-service-client.js'
-import { InvalidCredentialsError, TokenExpiredError } from '../lib/auth-errors.js'
+import { InvalidCredentialsError, RoleNotPermittedError, TokenExpiredError } from '../lib/auth-errors.js'
 
 const PROBLEM_BASE = 'https://cems.starenergy.ca/errors'
 
@@ -86,6 +86,24 @@ export function buildErrorHandler() {
       const problem = buildProblemDetail(401, 'Invalid email or password', instance)
       request.log.warn({ request_id: request.id }, 'login attempt rejected')
       reply.code(401).type('application/problem+json').send(problem)
+      return
+    }
+
+    // Role-mismatch → 403 with the standard `forbidden` slug + a fixed
+    // `Role not permitted` detail. Caller-supplied detail is overridden
+    // here to keep the response uniform across all role-guarded routes.
+    if (error instanceof RoleNotPermittedError) {
+      const problem = buildProblemDetail(403, 'Role not permitted', instance)
+      request.log.warn(
+        {
+          request_id: request.id,
+          tenant_id: request.rlsContext?.tenantId ?? null,
+          user_role: request.rlsContext?.role ?? null,
+          route: request.routeOptions?.url ?? request.url,
+        },
+        'role guard rejected request',
+      )
+      reply.code(403).type('application/problem+json').send(problem)
       return
     }
 

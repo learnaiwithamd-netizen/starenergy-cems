@@ -1,7 +1,25 @@
+import { Route, Routes } from 'react-router-dom'
 import { Button } from '@cems/ui'
 import { AuditStatus, SECTION_LOCK_TTL_MS } from '@cems/types'
+import { LoginPage } from './features/auth/LoginPage'
+import { RequireAuth } from './features/auth/RequireAuth'
+import { useAuthBootstrap } from './features/auth/useAuthBootstrap'
+import { useAuthStore } from './features/auth/auth-store'
+import { useLogout } from './features/auth/useLogout'
+
+const SURFACE = 'audit' as const
 
 export default function App() {
+  const { ready } = useAuthBootstrap()
+
+  if (!ready) {
+    return (
+      <main id="main-content" tabIndex={-1} className="min-h-screen p-4">
+        <p>Loading…</p>
+      </main>
+    )
+  }
+
   return (
     <>
       <a
@@ -11,12 +29,36 @@ export default function App() {
         Skip to main content
       </a>
       <main id="main-content" tabIndex={-1} className="min-h-screen p-4">
-        <h1 className="text-2xl font-semibold">Audit App</h1>
-        <p className="mt-2 text-sm text-gray-600">
-          Status demo: {AuditStatus.DRAFT} · Lock TTL: {SECTION_LOCK_TTL_MS}ms
-        </p>
-        <Button className="mt-4">Get started</Button>
+        <Routes>
+          <Route path="/login" element={<LoginPage surface={SURFACE} title="Site Audit — Sign in" />} />
+          <Route
+            path="/*"
+            element={
+              <RequireAuth surface={SURFACE}>
+                <Home />
+              </RequireAuth>
+            }
+          />
+        </Routes>
       </main>
+    </>
+  )
+}
+
+function Home() {
+  const user = useAuthStore((s) => s.user)
+  const logout = useLogout()
+  return (
+    <>
+      <h1 className="text-2xl font-semibold">Audit App</h1>
+      <p className="mt-2 text-sm text-gray-600">
+        Status demo: {AuditStatus.DRAFT} · Lock TTL: {SECTION_LOCK_TTL_MS}ms
+      </p>
+      {user && <p className="mt-2 text-sm">Signed in as {user.name} ({user.email})</p>}
+      <Button className="mt-4">Get started</Button>
+      <Button variant="ghost" className="ml-2 mt-4" onClick={() => void logout()}>
+        Sign out
+      </Button>
     </>
   )
 }

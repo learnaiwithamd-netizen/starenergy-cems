@@ -52,6 +52,30 @@ export type RefreshRequest = z.infer<typeof refreshRequestSchema>
 export const logoutRequestSchema = refreshRequestSchema
 export type LogoutRequest = RefreshRequest
 
+// ─── /api/v1/me response (current user profile) ────────────────────────
+export const meResponseSchema = z.object({
+  id: z.string().min(1),
+  email: z.string().email(),
+  name: z.string().min(1),
+  role: z.nativeEnum(UserRole),
+  tenantId: z.string().min(1),
+  assignedStoreIds: z.array(z.string().min(1)).max(ASSIGNED_STORE_IDS_MAX),
+})
+export type MeResponse = z.infer<typeof meResponseSchema>
+
+// ─── Surface routing — role → which SPA the user belongs to ────────────
+// SPA codename used as a discriminator: 'audit' = audit-app, 'admin' =
+// admin-app, 'client' = client-portal. The actual URLs are env-driven
+// per SPA (VITE_AUDIT_APP_URL / VITE_ADMIN_APP_URL / VITE_CLIENT_PORTAL_URL)
+// so this constant only encodes the role→surface mapping, not the URL.
+export type SurfaceCode = 'audit' | 'admin' | 'client'
+
+export const SURFACE_BY_ROLE: Readonly<Record<UserRole, SurfaceCode>> = Object.freeze({
+  [UserRole.AUDITOR]: 'audit',
+  [UserRole.ADMIN]: 'admin',
+  [UserRole.CLIENT]: 'client',
+})
+
 // ─── Access-token claims (what's signed inside the JWT) ────────────────
 // Single source of truth — apps/api/src/middleware/auth.ts validates against
 // this same schema on the incoming side, and apps/api/src/lib/tokens.ts

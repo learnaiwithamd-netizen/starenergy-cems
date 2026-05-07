@@ -42,6 +42,11 @@ export function registerAuthHook(app: FastifyInstance): void {
   app.decorateRequest('rlsContext', null)
 
   app.addHook('preHandler', async (request: FastifyRequest, reply) => {
+    // CORS preflight: browsers do NOT send Authorization on OPTIONS requests.
+    // Let @fastify/cors handle the preflight 204 response without 401-ing.
+    if (request.method === 'OPTIONS') {
+      return
+    }
     if (isPublicRoute(request.url)) {
       return
     }

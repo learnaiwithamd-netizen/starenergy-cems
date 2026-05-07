@@ -1,4 +1,5 @@
 import Fastify, { type FastifyInstance } from 'fastify'
+import cors from '@fastify/cors'
 import sensible from '@fastify/sensible'
 import swagger from '@fastify/swagger'
 import swaggerUI from '@fastify/swagger-ui'
@@ -11,6 +12,23 @@ import { registerAuthHook } from './middleware/auth.js'
 import { registerRlsRequestHook } from './middleware/rls-request.js'
 import { registerAuthRoutes } from './routes/auth.routes.js'
 import { registerDbHealthRoute } from './routes/db-health.js'
+import { registerMeRoutes } from './routes/me.routes.js'
+import { registerTestRoutes } from './routes/_test.routes.js'
+
+const DEFAULT_DEV_ORIGINS = [
+  'http://localhost:5173', // audit-app
+  'http://localhost:5174', // admin-app
+  'http://localhost:5175', // client-portal
+]
+
+function getCorsOrigins(): string[] {
+  const raw = process.env['CORS_ORIGINS']
+  if (!raw) return DEFAULT_DEV_ORIGINS
+  return raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+}
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -26,6 +44,17 @@ export async function buildApp(): Promise<FastifyInstance> {
   }) as unknown as FastifyInstance
 
   await app.register(sensible)
+
+  // CORS is registered BEFORE the auth hook so OPTIONS preflights are
+  // handled by the plugin (and the auth hook's OPTIONS short-circuit
+  // means the preflight reaches the cors plugin's reply).
+  await app.register(cors, {
+    origin: getCorsOrigins(),
+    methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Authorization', 'Content-Type', 'X-Request-Id'],
+    credentials: false, // Bearer-token auth only — never use cookies.
+    maxAge: 86_400, // cache preflight for 24h
+  })
 
   await app.register(swagger, {
     openapi: {
@@ -88,6 +117,12 @@ export async function buildApp(): Promise<FastifyInstance> {
 
   registerDbHealthRoute(app)
   registerAuthRoutes(app)
+  registerMeRoutes(app)
+
+  // Test-only routes — gate behind NODE_ENV so they never ship to prod.
+  if (process.env['NODE_ENV'] !== 'production') {
+    registerTestRoutes(app)
+  }
 
   return app
 }

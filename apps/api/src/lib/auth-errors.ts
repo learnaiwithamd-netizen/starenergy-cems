@@ -26,3 +26,16 @@ export class InvalidCredentialsError extends Error {
     this.name = 'InvalidCredentialsError'
   }
 }
+
+/**
+ * Thrown by `requireRole(...)` when the authenticated caller's role is not
+ * in the allowlist. Maps to RFC 7807 403 with slug `forbidden` and a fixed
+ * `detail: 'Role not permitted'` so the SPA can branch on `problem.type`.
+ */
+export class RoleNotPermittedError extends Error {
+  readonly statusCode = 403
+  constructor(message = 'Role not permitted') {
+    super(message)
+    this.name = 'RoleNotPermittedError'
+  }
+}

@@ -61,7 +61,7 @@ development_status:
   # ─────────────────────────────────────────────
   epic-1: in-progress
   1-1-email-password-login-and-jwt-issuance: review
-  1-2-role-based-surface-access-and-route-guards: ready-for-dev
+  1-2-role-based-surface-access-and-route-guards: review
   1-3-admin-user-management-auditor-accounts: backlog
   1-4-admin-user-management-client-accounts-and-site-assignment: backlog
   epic-1-retrospective: optional

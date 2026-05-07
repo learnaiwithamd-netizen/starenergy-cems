@@ -19,6 +19,7 @@
     "@azure/storage-blob": "^12.26.0",
     "@cems/db": "workspace:*",
     "@cems/types": "workspace:*",
+    "@fastify/cors": "^10.0.2",
     "@fastify/sensible": "^6.0.3",
     "@fastify/swagger": "^9.4.0",
     "@fastify/swagger-ui": "^5.2.1",

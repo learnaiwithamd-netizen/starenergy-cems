@@ -177,6 +177,24 @@ describe('auth middleware', () => {
     await app.close()
   })
 
+  it('OPTIONS preflight on a protected route is short-circuited (no 401)', async () => {
+    const app = await buildTestApp()
+    const res = await app.inject({
+      method: 'OPTIONS',
+      url: '/api/v1/audits',
+      // No Authorization header — browsers do NOT send it on preflight.
+      headers: {
+        'access-control-request-method': 'GET',
+        origin: 'http://localhost:5173',
+      },
+    })
+    // Without the OPTIONS short-circuit, the auth hook would 401 here.
+    // With it, the request reaches Fastify's default OPTIONS handler
+    // (which returns 404 for an unrouted method, but NOT 401).
+    expect(res.statusCode).not.toBe(401)
+    await app.close()
+  })
+
   it('handles Authorization header arriving as string[] (defensive)', async () => {
     const app = await buildTestApp()
     const token = await makeToken({

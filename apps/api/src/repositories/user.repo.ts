@@ -9,6 +9,7 @@ export interface AuthUser {
   id: string
   tenantId: string
   email: string
+  name: string
   role: UserRole
   passwordHash: string
   assignedStoreIds: string[]
@@ -39,6 +40,7 @@ interface UserRow {
   id: string
   tenantId: string
   email: string
+  name: string
   role: string
   passwordHash: string
   assignedStoreIds: string
@@ -51,6 +53,7 @@ async function selectUserBy(tx: PrismaLike, where: { email?: string; id?: string
       id: true,
       tenantId: true,
       email: true,
+      name: true,
       role: true,
       passwordHash: true,
       assignedStoreIds: true,
@@ -73,6 +76,7 @@ function mapRow(row: UserRow | null): AuthUser | null {
     id: row.id,
     tenantId: row.tenantId,
     email: row.email,
+    name: row.name,
     role: row.role as UserRole,
     passwordHash: row.passwordHash,
     assignedStoreIds,

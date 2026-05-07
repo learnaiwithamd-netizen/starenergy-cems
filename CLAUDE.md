@@ -120,3 +120,22 @@ Azure-hosted (canadacentral). IaC is Bicep in `infra/bicep/`. Three environments
 ## Environment Variables
 
 Copy `.env.example` to `.env`. Required locals: `SA_PASSWORD` (SQL Server), `JWT_SECRET`, `DATABASE_URL`, `REDIS_URL`. `ANTHROPIC_API_KEY` and `CALC_SERVICE_URL` are needed for LLM-review jobs and calc integration respectively.
+
+**API CORS** (Story 1.2): `CORS_ORIGINS` is a comma-separated allowlist (e.g., `https://audit.cems.starenergy.ca,https://admin.cems.starenergy.ca,https://portal.cems.starenergy.ca`). Falls back to localhost:5173/5174/5175 in dev. **No wildcard fallback in prod** — set the env var or CORS will reject every cross-origin request.
+
+**Per-SPA URLs** (consumed by cross-surface redirects when a user logs into the wrong SPA for their role):
+
+```
+VITE_API_BASE_URL=http://localhost:3001
+VITE_AUDIT_APP_URL=http://localhost:5173
+VITE_ADMIN_APP_URL=http://localhost:5174
+VITE_CLIENT_PORTAL_URL=http://localhost:5175
+```
+
+## Auth Flow (Story 1.1 + 1.2)
+
+- **API endpoints**: `POST /api/v1/auth/{login,refresh,logout}`, `GET /api/v1/me`. Login returns `{ accessToken, refreshToken, tokenType, expiresIn }`. Access tokens are HS256 JWTs with role-specific TTL (Auditor 8h, Admin/Client 4h) and `iss=cems` / `aud=cems-api`. Refresh tokens are 64-byte secrets; only their SHA-256 hash is persisted.
+- **Role guard**: per-route `requireRole([UserRole.ADMIN])` pre-handler; rejects mismatched callers with RFC 7807 403 `…/forbidden`.
+- **SPA storage**: access token in memory (Zustand), refresh token in `localStorage` under key `cems.refreshToken`. Each SPA's api-client retries 401-token-expired ONCE via `/auth/refresh`; concurrent 401s share a single in-flight refresh.
+- **Cross-surface redirect**: logging into the wrong SPA discards the just-issued tokens (calls `/auth/logout` + clears localStorage) and `window.location.assign`s to the correct surface's `/login`.
+- **Synthetic test route**: `GET /api/v1/_test/admin-only` exists when `NODE_ENV !== 'production'` for AC5 verification only — Story 1.3 will replace it with real ADMIN routes.
