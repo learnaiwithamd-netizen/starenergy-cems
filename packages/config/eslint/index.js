@@ -1,4 +1,7 @@
 import tseslint from 'typescript-eslint'
+import jsxA11y from 'eslint-plugin-jsx-a11y'
+import react from 'eslint-plugin-react'
+import reactHooks from 'eslint-plugin-react-hooks'
 import noTenantRawPrisma from './rules/no-tenant-raw-prisma.js'
 
 /**
@@ -15,14 +18,6 @@ export const plugin = {
   },
 }
 
-/**
- * Pre-baked flat-config blocks ready for `eslint.config.{js,mjs}` consumers.
- *
- * `recommendedTs` is a small array (TS parser block + the cems rule block)
- * that consumers spread into their own flat config along with their `files:`
- * patterns. Splitting it lets us reuse the parser block for `.ts` files
- * while keeping the rule block parser-agnostic.
- */
 export const rules = {
   // Spread INTO a `files: [...]` block; provides TS parser + the
   // typescript-eslint plugin so consumers' inline disable comments
@@ -33,6 +28,7 @@ export const rules = {
       parserOptions: {
         ecmaVersion: 'latest',
         sourceType: 'module',
+        ecmaFeatures: { jsx: true },
       },
     },
     plugins: {
@@ -46,6 +42,47 @@ export const rules = {
       'no-console': 'error',
       'no-debugger': 'error',
       'no-unused-vars': 'off',
+    },
+  },
+  // React + jsx-a11y flat-config block for SPAs. Consumers spread this into
+  // their flat config — covers all .tsx/.jsx files. Combined with the
+  // --max-warnings=0 flag in package.json's lint script, any jsx-a11y issue
+  // fails CI.
+  reactA11y: {
+    files: ['**/*.{tsx,jsx}'],
+    plugins: {
+      'jsx-a11y': jsxA11y,
+      react,
+      'react-hooks': reactHooks,
+    },
+    languageOptions: {
+      globals: {
+        // Browser globals so React components don't trigger no-undef on
+        // window / document / etc.
+        window: 'readonly',
+        document: 'readonly',
+        navigator: 'readonly',
+        console: 'readonly',
+        URL: 'readonly',
+        URLSearchParams: 'readonly',
+        fetch: 'readonly',
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
+        setInterval: 'readonly',
+        clearInterval: 'readonly',
+      },
+      parserOptions: { ecmaFeatures: { jsx: true } },
+    },
+    settings: {
+      react: { version: 'detect' },
+    },
+    rules: {
+      ...react.configs.recommended.rules,
+      ...reactHooks.configs.recommended.rules,
+      ...jsxA11y.flatConfigs.recommended.rules,
+      // JSX in React 17+ transform — no need to import React in scope.
+      'react/react-in-jsx-scope': 'off',
+      'react/prop-types': 'off',
     },
   },
 }

@@ -20,13 +20,20 @@ pnpm dev
 pnpm build
 
 # Lint, type-check, test
-pnpm lint
+pnpm lint                 # SPAs enforce --max-warnings=0 (jsx-a11y zero tolerance)
 pnpm type-check
-pnpm test
+pnpm test                 # Vitest across all packages (jsdom for SPAs, axe scan on App)
+
+# Playwright visual-regression (5 viewports per SPA)
+pnpm playwright:install   # First-time only — downloads Chromium + system deps
+pnpm --filter audit-app exec playwright test
+pnpm --filter audit-app exec playwright test --update-snapshots   # Refresh baselines
 
 # Run a single app
 pnpm --filter @cems/api dev
-pnpm --filter @cems/audit-app dev
+pnpm --filter audit-app dev          # :5173
+pnpm --filter admin-app dev          # :5174
+pnpm --filter client-portal dev      # :5175
 
 # Database (run from packages/db)
 pnpm --filter @cems/db db:migrate:dev    # Apply migrations in dev
@@ -51,9 +58,9 @@ Turborepo monorepo with pnpm workspaces. `apps/*` and `packages/*` are workspace
 |-----|-------|------|---------|
 | `apps/api` | Fastify 5 + Node 22 | 3001 | REST API, OpenAPI docs at `/api/v1/docs` |
 | `apps/calc-service` | FastAPI + Python 3.12 | 8000 | Emissions calculation microservice |
-| `apps/audit-app` | React 19 + Vite | 5174 | Mobile-first auditor PWA |
+| `apps/audit-app` | React 19 + Vite | 5173 | Mobile-first auditor PWA |
 | `apps/admin-app` | React 19 + Vite | 5174 | Admin SPA |
-| `apps/client-portal` | React 19 + Vite | 5174 | Read-only client dashboard |
+| `apps/client-portal` | React 19 + Vite | 5175 | Read-only client dashboard |
 
 All three React SPAs share identical tooling: Vite, React Query, React Router v7, Zustand, React Hook Form, Zod, and shadcn/ui components from `@cems/ui`.
 
@@ -84,6 +91,17 @@ Auth uses JWT (HS256) in all environments; production federates to Azure OIDC. P
 ### Calc Service Schema Parity
 
 The Pydantic v2 models in `apps/calc-service/app/models/` are the source of truth for calculation I/O shapes. Corresponding Zod schemas live in `@cems/types`. A CI job (`calc-schema-parity` in `.github/workflows/ci.yml`) runs `scripts/compare-zod-shape.mjs` to detect drift — any mismatch blocks merge. When changing calc endpoints, update **both** the Pydantic model and the Zod schema together.
+
+### Accessibility & Visual Regression Gates
+
+CI fails on any of these (introduced in Story 0.8):
+
+- **axe-core scans** — `vitest-axe` runs `expect(await axe(container)).toHaveNoViolations()` on each SPA's `App.test.tsx`. Add a route-level a11y test for every new route. Color-contrast checks are disabled in jsdom; Playwright covers contrast at real viewports.
+- **`eslint-plugin-jsx-a11y` with `--max-warnings=0`** — wired in `packages/config/eslint/index.js` as `rules.reactA11y`; consumed by every SPA's flat config. Any warning fails CI.
+- **Skip-to-main-content link** — every SPA's root `App.tsx` renders `<a href="#main-content" class="sr-only focus:not-sr-only ...">` as the first focusable element; `<main id="main-content" tabIndex={-1}>` is the landmark. Verified by Vitest + Playwright tests.
+- **Playwright visual regression at 5 viewports** — 375 / 390 / 768 / 1024 / 1280. Baselines committed under `apps/<each>/tests/e2e/__screenshots__/`. Snapshot path is platform-agnostic; pixel diff tolerance is `maxDiffPixelRatio: 0.05`.
+
+If a Playwright failure is a legitimate UI change (not a regression), regenerate baselines locally with `pnpm --filter <app> exec playwright test --update-snapshots` and commit the updated `__screenshots__/`. The CI job uploads `playwright-report/**` as a workflow artifact on failure for diff inspection.
 
 ### Infrastructure
 

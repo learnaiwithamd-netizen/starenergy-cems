@@ -1,0 +1,8 @@
+# Playwright visual-regression baselines + any other binary asset.
+# Tells git not to attempt text-mode diffs/merges on PNG screenshots.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.ico binary
+*.pdf binary

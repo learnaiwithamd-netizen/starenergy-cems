@@ -1,8 +1,5 @@
 import { rules as cemsRules } from '@cems/config/eslint'
 
-// Minimal flat config — Story 0.7 will land the full React + jsx-a11y rule set.
-// Until then we wire just the TS parser so `pnpm lint` parses .ts/.tsx without
-// erroring; rules are intentionally empty.
 /** @type {import('eslint').Linter.Config[]} */
 export default [
   {
@@ -10,8 +7,11 @@ export default [
   },
   {
     files: ['src/**/*.{js,jsx,mjs,cjs,ts,tsx}'],
-    languageOptions: cemsRules.tsParser.languageOptions,
-    plugins: cemsRules.tsParser.plugins,
-    rules: {},
+    ...cemsRules.tsParser,
+    ...cemsRules.recommended,
+  },
+  {
+    ...cemsRules.reactA11y,
+    files: ['src/**/*.{tsx,jsx}'],
   },
 ]

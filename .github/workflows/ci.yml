@@ -173,6 +173,75 @@ jobs:
         with:
           fail_on_error: true
 
+  e2e-visual-regression:
+    name: e2e — Playwright visual regression (5 viewports × 3 SPAs)
+    needs: lint-test-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install Node deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - name: Install Playwright Chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Install Playwright system deps (always)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: pnpm exec playwright install-deps chromium
+
+      - name: Build SPAs
+        run: pnpm turbo run build --filter=audit-app --filter=admin-app --filter=client-portal
+
+      - name: Run Playwright (audit-app)
+        run: pnpm --filter audit-app exec playwright test
+        env:
+          CI: 'true'
+
+      - name: Run Playwright (admin-app)
+        run: pnpm --filter admin-app exec playwright test
+        env:
+          CI: 'true'
+
+      - name: Run Playwright (client-portal)
+        run: pnpm --filter client-portal exec playwright test
+        env:
+          CI: 'true'
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ github.run_id }}
+          path: |
+            apps/*/playwright-report/**
+            apps/*/test-results/**
+          retention-days: 7
+          if-no-files-found: ignore
+
   swa-preview:
     name: SWA preview deploys
     needs: lint-test-build

@@ -62,5 +62,10 @@ venv/
 coverage/
 *.lcov
 
+# Playwright run artifacts (baselines under tests/e2e/__screenshots__/ stay tracked)
+test-results/
+playwright-report/
+.playwright/
+
 # Prisma
 prisma/migrations/dev.db

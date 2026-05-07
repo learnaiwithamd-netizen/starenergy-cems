@@ -12,9 +12,12 @@
     "test": "turbo run test",
     "lint": "turbo run lint",
     "type-check": "turbo run type-check",
+    "playwright": "playwright test",
+    "playwright:install": "playwright install --with-deps chromium",
     "clean": "turbo run clean && rm -rf node_modules"
   },
   "devDependencies": {
+    "@playwright/test": "^1.49.0",
     "eslint": "^9.18.0",
     "turbo": "2.9.6"
   }

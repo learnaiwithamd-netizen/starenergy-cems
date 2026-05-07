@@ -13,6 +13,11 @@
     "lint": "echo 'no JS sources to lint'",
     "test": "node eslint/rules/no-tenant-raw-prisma.test.js"
   },
+  "dependencies": {
+    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "eslint-plugin-react": "^7.37.3",
+    "eslint-plugin-react-hooks": "^5.1.0"
+  },
   "devDependencies": {
     "eslint": "^9.18.0",
     "typescript-eslint": "^8.20.0"
