@@ -53,7 +53,7 @@ development_status:
   0-5-python-calculation-service-scaffold: done
   0-6-ci-cd-pipeline: done
   0-7-design-tokens-and-shared-component-library: done
-  0-8-accessibility-and-testing-infrastructure: backlog
+  0-8-accessibility-and-testing-infrastructure: ready-for-dev
   epic-0-retrospective: optional
 
   # ─────────────────────────────────────────────
