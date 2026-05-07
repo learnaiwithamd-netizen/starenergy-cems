@@ -37,7 +37,9 @@ const seededUser = {
   id: 'user-1',
   tenantId: 'tenant-a',
   email: 'auditor@cems.local',
+  name: 'Dev Auditor',
   role: UserRole.AUDITOR,
+  status: 'ACTIVE' as const,
   passwordHash: '', // populated in beforeAll
   assignedStoreIds: ['store-1'],
 }
@@ -102,6 +104,18 @@ describe('auth.service', () => {
       await expect(
         login({ email: 'auditor@cems.local', password: 'WRONG' }),
       ).rejects.toBeInstanceOf(InvalidCredentialsError)
+      expect(sessionRepoMock.createSession).not.toHaveBeenCalled()
+    })
+
+    it('throws InvalidCredentialsError when user.status is INACTIVE AND consumes argon2 verify time', async () => {
+      userRepoMock.findActiveUserByEmail.mockResolvedValue({ ...seededUser, status: 'INACTIVE' })
+      const start = Date.now()
+      await expect(
+        login({ email: 'auditor@cems.local', password: 'correct-password' }),
+      ).rejects.toBeInstanceOf(InvalidCredentialsError)
+      const elapsed = Date.now() - start
+      // Same parity-preserving timing as unknown-email branch.
+      expect(elapsed).toBeGreaterThanOrEqual(5)
       expect(sessionRepoMock.createSession).not.toHaveBeenCalled()
     })
 

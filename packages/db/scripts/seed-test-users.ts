@@ -60,12 +60,19 @@ async function main() {
   for (const u of SEED_USERS) {
     await prisma.user.upsert({
       where: { tenantId_email: { tenantId: TENANT, email: u.email } },
-      update: { name: u.name, role: u.role, passwordHash, assignedStoreIds: JSON.stringify(u.assignedStoreIds) },
+      update: {
+        name: u.name,
+        role: u.role,
+        status: 'ACTIVE',
+        passwordHash,
+        assignedStoreIds: JSON.stringify(u.assignedStoreIds),
+      },
       create: {
         tenantId: TENANT,
         email: u.email,
         name: u.name,
         role: u.role,
+        status: 'ACTIVE',
         passwordHash,
         assignedStoreIds: JSON.stringify(u.assignedStoreIds),
       },

@@ -22,6 +22,8 @@ const PUBLIC_ROUTES = new Set<string>([
   '/api/v1/auth/login',
   '/api/v1/auth/refresh',
   '/api/v1/auth/logout',
+  '/api/v1/auth/password-set',
+  '/api/v1/auth/password-set/validate',
 ])
 
 // Static assets served by @fastify/swagger-ui live under `/api/v1/docs/static/...`.

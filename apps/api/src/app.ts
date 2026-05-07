@@ -13,7 +13,8 @@ import { registerRlsRequestHook } from './middleware/rls-request.js'
 import { registerAuthRoutes } from './routes/auth.routes.js'
 import { registerDbHealthRoute } from './routes/db-health.js'
 import { registerMeRoutes } from './routes/me.routes.js'
-import { registerTestRoutes } from './routes/_test.routes.js'
+import { registerPasswordSetRoutes } from './routes/password-set.routes.js'
+import { registerUsersRoutes } from './routes/users.routes.js'
 
 const DEFAULT_DEV_ORIGINS = [
   'http://localhost:5173', // audit-app
@@ -118,11 +119,8 @@ export async function buildApp(): Promise<FastifyInstance> {
   registerDbHealthRoute(app)
   registerAuthRoutes(app)
   registerMeRoutes(app)
-
-  // Test-only routes — gate behind NODE_ENV so they never ship to prod.
-  if (process.env['NODE_ENV'] !== 'production') {
-    registerTestRoutes(app)
-  }
+  registerUsersRoutes(app)
+  registerPasswordSetRoutes(app)
 
   return app
 }

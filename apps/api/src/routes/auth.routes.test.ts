@@ -36,7 +36,9 @@ const seededUser = {
   id: 'user-1',
   tenantId: 'tenant-a',
   email: 'auditor@cems.local',
+  name: 'Dev Auditor',
   role: UserRole.AUDITOR,
+  status: 'ACTIVE' as const,
   passwordHash: '',
   assignedStoreIds: ['store-1'],
 }

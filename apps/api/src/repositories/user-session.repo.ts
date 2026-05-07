@@ -72,3 +72,16 @@ export async function deleteSessionByHash(
   const res = await tx.userSession.deleteMany({ where: { refreshTokenHash } })
   return { count: res.count }
 }
+
+/**
+ * Revoke every session for a user. Used by the deactivation path
+ * (Story 1.3 AC3). Caller MUST pass the same `tx` it uses to set
+ * status=INACTIVE so both happen atomically.
+ */
+export async function deleteSessionsByUserId(
+  tx: PrismaLike,
+  userId: string,
+): Promise<{ count: number }> {
+  const res = await tx.userSession.deleteMany({ where: { userId } })
+  return { count: res.count }
+}

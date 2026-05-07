@@ -52,6 +52,64 @@ export type RefreshRequest = z.infer<typeof refreshRequestSchema>
 export const logoutRequestSchema = refreshRequestSchema
 export type LogoutRequest = RefreshRequest
 
+// ─── User status (Story 1.3) ───────────────────────────────────────────
+export const userStatusValues = ['ACTIVE', 'INACTIVE'] as const
+export type UserStatus = (typeof userStatusValues)[number]
+export const userStatusSchema = z.enum(userStatusValues)
+
+// ─── Admin user-management schemas (Story 1.3) ─────────────────────────
+// Distinct from `User` in user.ts — that one is the "current logged-in user"
+// shape; this is the admin-side projection (no passwordHash, includes status).
+export const adminUserSchema = z.object({
+  id: z.string().min(1),
+  tenantId: z.string().min(1),
+  email: z.string().email(),
+  name: z.string().min(1),
+  role: z.nativeEnum(UserRole),
+  status: userStatusSchema,
+  createdAt: z.string(), // ISO timestamp
+  updatedAt: z.string(),
+})
+export type AdminUser = z.infer<typeof adminUserSchema>
+
+export const createUserRequestSchema = z.object({
+  email: z.string().trim().toLowerCase().email().max(254),
+  name: z.string().trim().min(1).max(128),
+  role: z.literal(UserRole.AUDITOR), // Story 1.4 widens this to include CLIENT.
+})
+export type CreateUserRequest = z.infer<typeof createUserRequestSchema>
+
+export const updateUserRequestSchema = z
+  .object({
+    email: z.string().trim().toLowerCase().email().max(254).optional(),
+    name: z.string().trim().min(1).max(128).optional(),
+    status: userStatusSchema.optional(),
+  })
+  .refine(
+    (v) => v.email !== undefined || v.name !== undefined || v.status !== undefined,
+    { message: 'At least one of email, name, or status must be provided' },
+  )
+export type UpdateUserRequest = z.infer<typeof updateUserRequestSchema>
+
+export const listUsersResponseSchema = z.object({
+  users: z.array(adminUserSchema),
+  total: z.number().int().min(0),
+})
+export type ListUsersResponse = z.infer<typeof listUsersResponseSchema>
+
+// ─── Password-set flow (Story 1.3) ─────────────────────────────────────
+export const passwordSetValidateResponseSchema = z.object({
+  valid: z.literal(true),
+  email: z.string().email(),
+})
+export type PasswordSetValidateResponse = z.infer<typeof passwordSetValidateResponseSchema>
+
+export const passwordSetRequestSchema = z.object({
+  token: z.string().min(1),
+  password: z.string().min(12).max(256),
+})
+export type PasswordSetRequest = z.infer<typeof passwordSetRequestSchema>
+
 // ─── /api/v1/me response (current user profile) ────────────────────────
 export const meResponseSchema = z.object({
   id: z.string().min(1),

@@ -70,6 +70,7 @@ describe('GET /api/v1/me', () => {
       email: 'auditor@cems.local',
       name: 'Dev Auditor',
       role: UserRole.AUDITOR,
+      status: 'ACTIVE',
       passwordHash: '$argon2id$...',
       assignedStoreIds: ['store-1'],
     })
@@ -118,6 +119,35 @@ describe('GET /api/v1/me', () => {
     const body = JSON.parse(res.body)
     expect(body.type).toBe('https://cems.starenergy.ca/errors/authentication-required')
     expect(body.detail).toBe('User no longer exists')
+    await app.close()
+  })
+
+  it('401 when the user is INACTIVE (Story 1.3)', async () => {
+    userRepoMock.findActiveUserById.mockResolvedValue({
+      id: 'user-1',
+      tenantId: 'tenant-a',
+      email: 'auditor@cems.local',
+      name: 'Dev Auditor',
+      role: UserRole.AUDITOR,
+      status: 'INACTIVE',
+      passwordHash: '$argon2id$...',
+      assignedStoreIds: [],
+    })
+    const app = await buildTestApp()
+    const token = await makeToken({
+      sub: 'user-1',
+      tenantId: 'tenant-a',
+      role: UserRole.AUDITOR,
+      assignedStoreIds: [],
+    })
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/me',
+      headers: { authorization: `Bearer ${token}` },
+    })
+    expect(res.statusCode).toBe(401)
+    const body = JSON.parse(res.body)
+    expect(body.detail).toBe('User account is not active')
     await app.close()
   })
 

@@ -8,7 +8,9 @@ const baseRow = {
   id: 'user-1',
   tenantId: 'tenant-a',
   email: 'auditor@cems.local',
+  name: 'Dev Auditor',
   role: 'AUDITOR',
+  status: 'ACTIVE',
   passwordHash: '$argon2id$v=19$m=19456,t=2,p=1$abc$def',
   assignedStoreIds: '["store-1","store-2"]',
 }
@@ -25,7 +27,9 @@ describe('user.repo', () => {
         id: 'user-1',
         tenantId: 'tenant-a',
         email: 'auditor@cems.local',
+        name: 'Dev Auditor',
         role: UserRole.AUDITOR,
+        status: 'ACTIVE',
         passwordHash: baseRow.passwordHash,
         assignedStoreIds: ['store-1', 'store-2'],
       })
@@ -35,7 +39,9 @@ describe('user.repo', () => {
         id: true,
         tenantId: true,
         email: true,
+        name: true,
         role: true,
+        status: true,
         passwordHash: true,
         assignedStoreIds: true,
       })

@@ -39,3 +39,17 @@ export class RoleNotPermittedError extends Error {
     this.name = 'RoleNotPermittedError'
   }
 }
+
+/**
+ * Thrown by user.service.createAuditor / updateUser when a (tenantId, email)
+ * collision is detected (Prisma P2002). Maps to RFC 7807 409 with detail
+ * `'User with this email already exists'`. The detail is fixed on the wire
+ * — we never echo the conflicting email into the response.
+ */
+export class UserEmailConflictError extends Error {
+  readonly statusCode = 409
+  constructor(message = 'User with this email already exists') {
+    super(message)
+    this.name = 'UserEmailConflictError'
+  }
+}

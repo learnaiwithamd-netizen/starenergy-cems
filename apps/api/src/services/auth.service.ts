@@ -25,8 +25,9 @@ import {
 export async function login(input: LoginRequest): Promise<LoginResponse> {
   const user = await withSystemAuth((tx) => findActiveUserByEmail(tx, input.email))
 
-  if (!user) {
-    // Burn comparable verify-time to defeat email-enumeration timing attacks.
+  // Three failure modes collapse to the SAME response shape AND comparable
+  // timing: unknown email, INACTIVE user, wrong password.
+  if (!user || user.status !== 'ACTIVE') {
     await verifyPassword(await getDummyPasswordHash(), input.password)
     throw new InvalidCredentialsError()
   }

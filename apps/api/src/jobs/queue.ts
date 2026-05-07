@@ -43,6 +43,11 @@ export function getQueues(): Record<QueueName, Queue> {
   return _queues
 }
 
+/** Convenience accessor used by user.service.createAuditor (Story 1.3). */
+export function getEmailNotificationQueue(): Queue {
+  return getQueues()[QUEUE_NAMES.emailNotification]
+}
+
 export async function closeQueues(): Promise<void> {
   if (!_queues) return
   await Promise.all(Object.values(_queues).map((q) => q.close()))

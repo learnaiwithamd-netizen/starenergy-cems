@@ -42,12 +42,14 @@ model User {
   email            String
   name             String
   role             String    @db.NVarChar(20)
+  status           String    @default("ACTIVE") @db.NVarChar(20)
   passwordHash     String    @map("password_hash")
   assignedStoreIds String    @default("[]") @map("assigned_store_ids") @db.NVarChar(Max)
   createdAt        DateTime  @default(now()) @map("created_at")
   updatedAt        DateTime  @updatedAt @map("updated_at")
 
   sessions           UserSession[]
+  passwordSetTokens  PasswordSetToken[]
   authoredAudits     Audit[]        @relation("AuditAuditor")
   sectionLocks       SectionLock[]
   auditLogEntries    AuditLog[]     @relation("AuditLogActor")
@@ -55,7 +57,24 @@ model User {
 
   @@unique([tenantId, email], map: "uq_users_tenant_email")
   @@index([tenantId], map: "idx_users_tenant_id")
+  @@index([tenantId, status], map: "idx_users_tenant_status")
   @@map("users")
+}
+
+model PasswordSetToken {
+  id         String    @id @default(cuid())
+  tenantId   String    @map("tenant_id")
+  userId     String    @map("user_id")
+  tokenHash  String    @unique(map: "uq_password_set_tokens_hash") @map("token_hash")
+  expiresAt  DateTime  @map("expires_at")
+  usedAt     DateTime? @map("used_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade, map: "fk_password_set_tokens_user")
+
+  @@index([tenantId], map: "idx_password_set_tokens_tenant_id")
+  @@index([userId], map: "idx_password_set_tokens_user_id")
+  @@map("password_set_tokens")
 }
 
 model UserSession {

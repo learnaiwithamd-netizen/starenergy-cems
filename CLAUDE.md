@@ -132,6 +132,25 @@ VITE_ADMIN_APP_URL=http://localhost:5174
 VITE_CLIENT_PORTAL_URL=http://localhost:5175
 ```
 
+**API server-side surface URLs** (Story 1.3 — used to build the welcome-email password-set link; no `VITE_` prefix because they're read by Node, not the SPA bundler):
+
+```
+AUDIT_APP_URL=http://localhost:5173
+ADMIN_APP_URL=http://localhost:5174
+CLIENT_PORTAL_URL=http://localhost:5175
+```
+
+## Admin User Management (Story 1.3)
+
+- Admins can create, edit, deactivate, and list **auditor accounts** via:
+  - `POST /api/v1/users` (creates the user, generates a one-shot welcome-email link, enqueues a notification job)
+  - `GET /api/v1/users?role=AUDITOR&status=…` (RLS scopes to admin's tenant)
+  - `PATCH /api/v1/users/:id` (name / email / status). Setting `status: INACTIVE` atomically deletes every `user_sessions` row for the user.
+- Admin UI lives at `apps/admin-app` `/users` (under `RequireAuth`).
+- Welcome-email link points to `${AUDIT_APP_URL}/set-password?token=…` — the auditor sets their initial password via `POST /api/v1/auth/password-set`. Token TTL: 24h, one-shot.
+- INACTIVE users: `login` returns the same generic 401 as wrong-password (with timing parity via dummy argon2 verify); `/me` returns 401 so the SPA clears its session within one request.
+- Email job is **stub-only** until Story 5.5 — `cems-email-notification-low` is enqueued with `templateId: 'auditor-welcome'`, but no actual Resend send happens yet.
+
 ## Auth Flow (Story 1.1 + 1.2)
 
 - **API endpoints**: `POST /api/v1/auth/{login,refresh,logout}`, `GET /api/v1/me`. Login returns `{ accessToken, refreshToken, tokenType, expiresIn }`. Access tokens are HS256 JWTs with role-specific TTL (Auditor 8h, Admin/Client 4h) and `iss=cems` / `aud=cems-api`. Refresh tokens are 64-byte secrets; only their SHA-256 hash is persisted.

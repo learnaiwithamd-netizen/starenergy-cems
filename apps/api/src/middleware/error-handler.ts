@@ -2,7 +2,12 @@ import type { FastifyError, FastifyReply, FastifyRequest } from 'fastify'
 import type { ProblemDetail } from '@cems/types'
 import { ZodError } from 'zod'
 import { CalcServiceError } from '../lib/calc-service-client.js'
-import { InvalidCredentialsError, RoleNotPermittedError, TokenExpiredError } from '../lib/auth-errors.js'
+import {
+  InvalidCredentialsError,
+  RoleNotPermittedError,
+  TokenExpiredError,
+  UserEmailConflictError,
+} from '../lib/auth-errors.js'
 
 const PROBLEM_BASE = 'https://cems.starenergy.ca/errors'
 
@@ -86,6 +91,19 @@ export function buildErrorHandler() {
       const problem = buildProblemDetail(401, 'Invalid email or password', instance)
       request.log.warn({ request_id: request.id }, 'login attempt rejected')
       reply.code(401).type('application/problem+json').send(problem)
+      return
+    }
+
+    // User-email uniqueness conflict (admin user create/update path) → 409
+    // with a fixed `User with this email already exists` detail. We never
+    // echo the conflicting email back to the client.
+    if (error instanceof UserEmailConflictError) {
+      const problem = buildProblemDetail(409, 'User with this email already exists', instance)
+      request.log.warn(
+        { request_id: request.id, route: request.routeOptions?.url ?? request.url },
+        'user email conflict',
+      )
+      reply.code(409).type('application/problem+json').send(problem)
       return
     }
 

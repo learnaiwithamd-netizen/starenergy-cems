@@ -31,6 +31,18 @@ export function registerMeRoutes(app: FastifyInstance): void {
           instance: request.url,
         })
       }
+      // Story 1.3: deactivated users keep a valid JWT until natural expiry
+      // (verify is stateless), so /me proactively rejects INACTIVE so the
+      // SPA can clear its session within one request cycle.
+      if (user.status !== 'ACTIVE') {
+        return reply.code(401).type('application/problem+json').send({
+          type: 'https://cems.starenergy.ca/errors/authentication-required',
+          title: 'Unauthorized',
+          status: 401,
+          detail: 'User account is not active',
+          instance: request.url,
+        })
+      }
       return reply.code(200).send({
         id: user.id,
         email: user.email,

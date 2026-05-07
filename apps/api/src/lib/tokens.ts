@@ -88,18 +88,21 @@ export function generateRefreshToken(role: UserRole): GeneratedRefreshToken {
   const token = randomBytes(REFRESH_TOKEN_BYTES).toString('base64url')
   return {
     token,
-    hash: hashRefreshToken(token),
+    hash: sha256Hex(token),
     expiresAt: new Date(Date.now() + ttlSeconds * 1000),
   }
 }
 
 /**
- * Deterministic SHA-256 hex hash of a refresh token. Used at refresh/logout
- * lookup time. SHA-256 (vs argon2) is the right choice here because refresh
- * tokens are 64-byte cryptographically-random secrets, not low-entropy
- * passwords — work-factor hashing offers no defence and breaks the lookup
- * pattern (deterministic hash needed to find the row).
+ * Deterministic SHA-256 hex digest. Used at refresh-token lookup AND
+ * password-set-token lookup time. SHA-256 (vs argon2) is the right choice
+ * here because both inputs are cryptographically-random secrets, not
+ * low-entropy passwords — work-factor hashing offers no defence and
+ * breaks the lookup pattern (deterministic hash needed to find the row).
  */
-export function hashRefreshToken(token: string): string {
-  return createHash('sha256').update(token).digest('hex')
+export function sha256Hex(input: string): string {
+  return createHash('sha256').update(input).digest('hex')
 }
+
+/** @deprecated — use sha256Hex. Kept as a thin alias for ongoing PRs. */
+export const hashRefreshToken = sha256Hex
