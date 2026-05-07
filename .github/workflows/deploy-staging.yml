@@ -23,7 +23,7 @@ env:
   ACR_REGISTRY: cemsacrstaging.azurecr.io
   CALC_APP_NAME: cems-staging-calc
   API_APP_NAME: cems-staging-api
-  KEY_VAULT_NAME: cems-staging-kv
+  KEY_VAULT_NAME: cems-staging-kv-cefcbhmn
   PNPM_VERSION: 9.15.9
   NODE_VERSION: '22'
 
