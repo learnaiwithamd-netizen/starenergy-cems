@@ -99,6 +99,9 @@ param enableGithubFederation bool = true
 @description('Resource id of an existing Container Apps Environment to reuse (avoids the 1-per-region quota limit). Leave empty to create a new one.')
 param existingCaeResourceId string = ''
 
+@description('Override the calc-service container image entirely (e.g. a public placeholder for initial infra bootstrap). Leave empty to use ACR image.')
+param calcServiceImageOverride string = ''
+
 var tags = union(
   {
     app: 'cems'
@@ -292,6 +295,7 @@ module containerApps 'modules/containerapps.bicep' = {
     existingCaeResourceId: existingCaeResourceId
     acrLoginServer: acr.outputs.acrLoginServer
     imageTag: calcServiceImageTag
+    image: empty(calcServiceImageOverride) ? '${acr.outputs.acrLoginServer}/calc-service:${calcServiceImageTag}' : calcServiceImageOverride
     cpu: containerAppsConfig.cpu
     memory: containerAppsConfig.memory
     minReplicas: containerAppsConfig.minReplicas

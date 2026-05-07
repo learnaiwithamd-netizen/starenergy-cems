@@ -50,7 +50,7 @@ var calcAppName = 'cems-${env}-calc'
 var createNewEnv = empty(existingCaeResourceId)
 
 resource logWorkspace 'Microsoft.OperationalInsights/workspaces@2025-02-01' existing = if (createNewEnv) {
-  name: last(split(logAnalyticsWorkspaceId, '/'))
+  name: createNewEnv ? last(split(logAnalyticsWorkspaceId, '/')) : 'placeholder'
 }
 
 resource cae 'Microsoft.App/managedEnvironments@2025-01-01' = if (createNewEnv) {
@@ -61,8 +61,8 @@ resource cae 'Microsoft.App/managedEnvironments@2025-01-01' = if (createNewEnv) 
     appLogsConfiguration: {
       destination: 'log-analytics'
       logAnalyticsConfiguration: {
-        customerId: logWorkspace.properties.customerId
-        sharedKey: logWorkspace.listKeys().primarySharedKey
+        customerId: createNewEnv ? logWorkspace.properties.customerId : ''
+        sharedKey: createNewEnv ? logWorkspace.listKeys().primarySharedKey : ''
       }
     }
     vnetConfiguration: {

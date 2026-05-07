@@ -58,6 +58,10 @@ param swaCorsOrigins = []
 // Replace with a dedicated staging CAE once the quota is raised or a second subscription is available.
 param existingCaeResourceId = '/subscriptions/7a1afd60-8ba6-49af-bec3-519cae2ee295/resourceGroups/cems-dev-rg/providers/Microsoft.App/managedEnvironments/cems-dev-cae'
 
+// Public placeholder image for initial bootstrap — avoids AcrPull RBAC race condition.
+// CI (deploy-staging.yml) updates this to the real ACR image on every push to main.
+param calcServiceImageOverride = 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
+
 param extraTags = {
   tier: 'staging'
 }
