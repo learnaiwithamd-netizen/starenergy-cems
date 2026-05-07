@@ -2,85 +2,93 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## What This Repository Is
+## Commands
 
-This is a **BMAD Method** (v6.3.0) workspace — an AI-assisted product development framework installed for Claude Code. It is not a traditional software project. There is no build system, test runner, or source code to compile. The "code" here is a system of skills, agents, and structured workflows that Claude Code executes as slash commands.
+All commands run from the repo root unless noted.
 
-**User:** Abhishek  
-**Skill level:** Intermediate
+```bash
+# Local dev infrastructure (SQL Server 2022 + Redis)
+docker compose up -d
 
-## Directory Structure
+# Install dependencies
+pnpm install
 
+# Start all apps in watch mode
+pnpm dev
+
+# Build all packages and apps (respects Turborepo dependency order)
+pnpm build
+
+# Lint, type-check, test
+pnpm lint
+pnpm type-check
+pnpm test
+
+# Run a single app
+pnpm --filter @cems/api dev
+pnpm --filter @cems/audit-app dev
+
+# Database (run from packages/db)
+pnpm --filter @cems/db db:migrate:dev    # Apply migrations in dev
+pnpm --filter @cems/db db:generate       # Regenerate Prisma client after schema change
+pnpm --filter @cems/db db:studio         # Open Prisma Studio
+
+# Python calc service (run from apps/calc-service)
+uvicorn app.main:app --reload            # Dev server on :8000
+pytest                                   # Run tests
+
+# Schema parity check (Pydantic ↔ Zod drift gate)
+bash scripts/check-calc-schemas.sh
 ```
-_bmad/              # BMAD framework internals (do not modify)
-  _config/          # Manifests: agent-manifest.csv, skill-manifest.csv, files-manifest.csv
-  core/             # Core skills (brainstorming, distillation, review, etc.)
-  bmm/              # BMM module: agents and product development workflow skills
-_bmad-output/       # All generated artifacts land here
-  planning-artifacts/    # PRDs, architecture docs, epics, UX specs
-  implementation-artifacts/  # Story files, sprint plans, test suites
-docs/               # Project knowledge base (user-maintained)
-```
 
-## How BMAD Works
+## Architecture
 
-Skills are invoked via slash commands (e.g., `/bmad-create-prd`). Each skill reads from and writes to specific folders defined in config:
+Turborepo monorepo with pnpm workspaces. `apps/*` and `packages/*` are workspace members; packages must be built before apps (Turbo enforces this via `"dependsOn": ["^build"]`).
 
-- **Planning artifacts** → `_bmad-output/planning-artifacts/`
-- **Implementation artifacts** → `_bmad-output/implementation-artifacts/`
-- **Project knowledge** → `docs/`
+### Apps
 
-Configuration lives in:
-- `_bmad/core/config.yaml` — user name, language, output folder
-- `_bmad/bmm/config.yaml` — project name, skill level, artifact paths
+| App | Stack | Port | Purpose |
+|-----|-------|------|---------|
+| `apps/api` | Fastify 5 + Node 22 | 3001 | REST API, OpenAPI docs at `/api/v1/docs` |
+| `apps/calc-service` | FastAPI + Python 3.12 | 8000 | Emissions calculation microservice |
+| `apps/audit-app` | React 19 + Vite | 5174 | Mobile-first auditor PWA |
+| `apps/admin-app` | React 19 + Vite | 5174 | Admin SPA |
+| `apps/client-portal` | React 19 + Vite | 5174 | Read-only client dashboard |
 
-## The BMM Workflow Phases
+All three React SPAs share identical tooling: Vite, React Query, React Router v7, Zustand, React Hook Form, Zod, and shadcn/ui components from `@cems/ui`.
 
-Skills are organized into sequential phases:
+### Packages
 
-1. **Analysis** (`1-analysis`) — Domain research, market research, brainstorming, product brief
-2. **Planning** (`2-planning`) — Create/edit/validate PRD, UX design
-3. **Solutioning** (`3-solutioning`) — Architecture, epics & stories, implementation readiness check
-4. **Implementation** (`4-implementation`) — Sprint planning → create story → dev story → code review → QA → retrospective
+- **`@cems/types`** — Shared TypeScript types + Zod schemas; consumed by api and all SPAs
+- **`@cems/ui`** — shadcn/ui component library; peer-depends on React 19
+- **`@cems/db`** — Prisma client (MSSQL adapter), RLS middleware, migrations
+- **`@cems/config`** — Shared ESLint flat config, TypeScript presets (`base`, `app`, `server`), Tailwind preset
 
-## Key Agents (invoke by name or skill)
+### Database & RLS
 
-| Agent | Persona | Invoke via |
-|-------|---------|------------|
-| Mary | Business Analyst | `/bmad-agent-analyst` |
-| John | Product Manager | `/bmad-agent-pm` |
-| Winston | Architect | `/bmad-agent-architect` |
-| Amelia | Developer | `/bmad-agent-dev` |
-| Sally | UX Designer | `/bmad-agent-ux-designer` |
-| Paige | Tech Writer | `/bmad-agent-tech-writer` |
+SQL Server 2022 via Prisma with the `@prisma/adapter-mssql` driver. Multi-tenant row-level security is enforced at the query level via `packages/db/src/middleware/rls.js`. Use `withRlsTransaction` for any tenant-scoped writes.
 
-## Frequently Used Skills
+A custom ESLint rule (`no-tenant-raw-prisma` in `packages/config/eslint/rules/`) blocks direct Prisma calls outside the RLS context — CI will fail if this rule fires.
 
-| Goal | Skill |
-|------|-------|
-| Get oriented / what to do next | `/bmad-help` |
-| Create a PRD | `/bmad-create-prd` |
-| Create architecture | `/bmad-create-architecture` |
-| Break into epics & stories | `/bmad-create-epics-and-stories` |
-| Run sprint planning | `/bmad-sprint-planning` |
-| Implement a story | `/bmad-dev-story [story-file]` |
-| Quick code change without full workflow | `/bmad-quick-dev` |
-| Review code | `/bmad-code-review` |
-| Multi-agent discussion | `/bmad-party-mode` |
-| Check if ready to implement | `/bmad-check-implementation-readiness` |
+### API Structure (`apps/api/src/`)
 
-## Active Project
+- `app.ts` — Fastify app builder (plugins, routes, middleware)
+- `routes/` — HTTP handlers
+- `services/` — Business logic
+- `repositories/` — Data access (always use RLS wrappers)
+- `jobs/` — BullMQ queues: `email-notification-low`, `calculation-normal`, `llm-review-normal`, `pdf-generation-normal`
+- `middleware/` — JWT auth, RLS context injection, RFC 7807 error handling
 
-The current project is **Star Energy CEMS** (Carbon/Energy Management System). Reference documents uploaded by the user live directly in `_bmad-output/`:
-- `CEMS_PRD_1.0 (1).docx` — initial PRD draft
-- `Scope of Work_CEMS.docx` — project scope
-- `Star_Energy_CEMS/` — additional project materials
+Auth uses JWT (HS256) in all environments; production federates to Azure OIDC. Public routes: `/health`, `/db-health`, `/api/v1/docs`, `/auth/login`, `/auth/refresh`.
 
-> Note: `_bmad/bmm/config.yaml` still has `project_name: BMAD` — update this to `Star Energy CEMS` when starting formal artifacts.
+### Calc Service Schema Parity
 
-## Output Conventions
+The Pydantic v2 models in `apps/calc-service/app/models/` are the source of truth for calculation I/O shapes. Corresponding Zod schemas live in `@cems/types`. A CI job (`calc-schema-parity` in `.github/workflows/ci.yml`) runs `scripts/compare-zod-shape.mjs` to detect drift — any mismatch blocks merge. When changing calc endpoints, update **both** the Pydantic model and the Zod schema together.
 
-- Skills self-route their output to the correct folder — do not move generated files
-- `docs/` is the project knowledge base; the tech writer agent writes there
-- When a skill says "sprint plan" or "story", the file goes to `_bmad-output/implementation-artifacts/`
-- The `bmad-distillator` skill can compress large docs for token-efficient downstream use
+### Infrastructure
+
+Azure-hosted (canadacentral). IaC is Bicep in `infra/bicep/`. Three environments: `dev`, `staging`, `prod`. Prod deploys are manual (`workflow_dispatch`) with an approval gate. The API deploys via slot-swap (zero-downtime); SPAs deploy to Azure Static Web Apps.
+
+## Environment Variables
+
+Copy `.env.example` to `.env`. Required locals: `SA_PASSWORD` (SQL Server), `JWT_SECRET`, `DATABASE_URL`, `REDIS_URL`. `ANTHROPIC_API_KEY` and `CALC_SERVICE_URL` are needed for LLM-review jobs and calc integration respectively.

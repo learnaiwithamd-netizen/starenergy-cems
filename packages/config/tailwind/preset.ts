@@ -24,6 +24,11 @@ const preset: Partial<Config> = {
           DEFAULT: 'var(--color-surface)',
           elevated: 'var(--color-surface-elevated)',
         },
+        muted: {
+          DEFAULT: 'var(--color-muted)',
+          foreground: 'var(--color-muted-foreground)',
+        },
+        border: 'var(--color-border)',
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],

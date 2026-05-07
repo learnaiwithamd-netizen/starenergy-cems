@@ -1,5 +1,5 @@
 # generated: 2026-04-20
-# last_updated: 2026-05-03
+# last_updated: 2026-05-07
 # project: Star Energy CEMS
 # project_key: NOKEY
 # tracking_system: file-system
@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-20
-last_updated: 2026-05-03
+last_updated: 2026-05-07
 project: Star Energy CEMS
 project_key: NOKEY
 tracking_system: file-system
@@ -52,7 +52,7 @@ development_status:
   0-4-nodejs-api-foundation-and-job-queue-setup: done
   0-5-python-calculation-service-scaffold: done
   0-6-ci-cd-pipeline: done
-  0-7-design-tokens-and-shared-component-library: backlog
+  0-7-design-tokens-and-shared-component-library: done
   0-8-accessibility-and-testing-infrastructure: backlog
   epic-0-retrospective: optional
 
