@@ -3,6 +3,7 @@ import { Button } from '@cems/ui'
 import { AuditStatus } from '@cems/types'
 import { LoginPage } from './features/auth/LoginPage'
 import { RequireAuth } from './features/auth/RequireAuth'
+import { SetPasswordPage } from './features/auth/SetPasswordPage'
 import { useAuthBootstrap } from './features/auth/useAuthBootstrap'
 import { useAuthStore } from './features/auth/auth-store'
 import { useLogout } from './features/auth/useLogout'
@@ -31,6 +32,7 @@ export default function App() {
       <main id="main-content" tabIndex={-1} className="min-h-screen p-4">
         <Routes>
           <Route path="/login" element={<LoginPage surface={SURFACE} title="Star Energy Client Portal — Sign in" />} />
+          <Route path="/set-password" element={<SetPasswordPage />} />
           <Route
             path="/*"
             element={

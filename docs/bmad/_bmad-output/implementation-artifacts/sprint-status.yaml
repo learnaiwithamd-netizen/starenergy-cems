@@ -63,7 +63,7 @@ development_status:
   1-1-email-password-login-and-jwt-issuance: review
   1-2-role-based-surface-access-and-route-guards: review
   1-3-admin-user-management-auditor-accounts: review
-  1-4-admin-user-management-client-accounts-and-site-assignment: ready-for-dev
+  1-4-admin-user-management-client-accounts-and-site-assignment: review
   epic-1-retrospective: optional
 
   # ─────────────────────────────────────────────

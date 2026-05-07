@@ -122,6 +122,38 @@ describe('GET /api/v1/me', () => {
     await app.close()
   })
 
+  it('returns LIVE assignedStoreIds from the DB row, NOT the (stale) JWT claim — Story 1.4', async () => {
+    // DB row: 2 assigned stores. JWT claim: 1 assigned store (stale).
+    // /me must return the LIVE list, so the SPA can detect drift and trigger
+    // a refresh.
+    userRepoMock.findActiveUserById.mockResolvedValue({
+      id: 'user-1',
+      tenantId: 'tenant-a',
+      email: 'client@cems.local',
+      name: 'Dev Client',
+      role: UserRole.CLIENT,
+      status: 'ACTIVE',
+      passwordHash: '$argon2id$...',
+      assignedStoreIds: ['store-001', 'store-002'], // LIVE
+    })
+    const app = await buildTestApp()
+    const token = await makeToken({
+      sub: 'user-1',
+      tenantId: 'tenant-a',
+      role: UserRole.CLIENT,
+      assignedStoreIds: ['store-001'], // STALE
+    })
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/me',
+      headers: { authorization: `Bearer ${token}` },
+    })
+    expect(res.statusCode).toBe(200)
+    const body = JSON.parse(res.body)
+    expect(body.assignedStoreIds).toEqual(['store-001', 'store-002'])
+    await app.close()
+  })
+
   it('401 when the user is INACTIVE (Story 1.3)', async () => {
     userRepoMock.findActiveUserById.mockResolvedValue({
       id: 'user-1',

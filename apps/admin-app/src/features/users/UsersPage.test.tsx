@@ -28,7 +28,7 @@ function renderPage() {
   )
 }
 
-const sampleUsers = [
+const sampleAuditors = [
   {
     id: 'user-1',
     tenantId: 'tenant-a',
@@ -36,6 +36,21 @@ const sampleUsers = [
     name: 'Aud One',
     role: 'AUDITOR',
     status: 'ACTIVE',
+    assignedStoreIds: [],
+    createdAt: '2026-05-07T00:00:00.000Z',
+    updatedAt: '2026-05-07T00:00:00.000Z',
+  },
+]
+
+const sampleClients = [
+  {
+    id: 'user-2',
+    tenantId: 'tenant-a',
+    email: 'client1@cems.local',
+    name: 'Client One',
+    role: 'CLIENT',
+    status: 'ACTIVE',
+    assignedStoreIds: ['store-001', 'store-002'],
     createdAt: '2026-05-07T00:00:00.000Z',
     updatedAt: '2026-05-07T00:00:00.000Z',
   },
@@ -53,9 +68,9 @@ describe('UsersPage', () => {
     await waitFor(() => expect(screen.getByText(/no auditor accounts yet/i)).toBeInTheDocument())
   })
 
-  it('renders the table when users exist', async () => {
+  it('renders the table when auditors exist', async () => {
     fetchMock.mockResolvedValue(
-      new Response(JSON.stringify({ users: sampleUsers, total: 1 }), {
+      new Response(JSON.stringify({ users: sampleAuditors, total: 1 }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       }),
@@ -68,6 +83,37 @@ describe('UsersPage', () => {
       rules: { 'color-contrast': { enabled: false } },
     })
     expect(results).toHaveNoViolations()
+  })
+
+  it('switches to the Clients tab + shows the assigned-stores column (Story 1.4)', async () => {
+    // First call: AUDITOR list (default tab) — empty.
+    // Second call (after clicking Clients tab): CLIENT list with seeded row.
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ users: [], total: 0 }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ users: sampleClients, total: 1 }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      )
+    const user = userEvent.setup()
+    renderPage()
+    await waitFor(() => expect(screen.getByText(/no auditor accounts yet/i)).toBeInTheDocument())
+
+    // Click the Clients tab.
+    await user.click(screen.getByRole('tab', { name: /clients/i }))
+
+    await waitFor(() => expect(screen.getByText('Client One')).toBeInTheDocument())
+    // The Clients view shows the Assigned-stores column with the count.
+    expect(screen.getByText('Assigned stores')).toBeInTheDocument()
+    expect(screen.getByText('2')).toBeInTheDocument()
+    // The dialog button now reads "New client".
+    expect(screen.getByRole('button', { name: /new client/i })).toBeInTheDocument()
   })
 
   it('opens the create-user dialog on button click', async () => {

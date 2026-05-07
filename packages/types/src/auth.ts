@@ -67,16 +67,33 @@ export const adminUserSchema = z.object({
   name: z.string().min(1),
   role: z.nativeEnum(UserRole),
   status: userStatusSchema,
+  // Story 1.4 — surfaces the per-CLIENT site assignments. AUDITOR rows
+  // have an empty array (the cross-field refine on createUserRequestSchema
+  // enforces this on writes).
+  assignedStoreIds: z.array(z.string().min(1)).max(ASSIGNED_STORE_IDS_MAX).default([]),
   createdAt: z.string(), // ISO timestamp
   updatedAt: z.string(),
 })
 export type AdminUser = z.infer<typeof adminUserSchema>
 
-export const createUserRequestSchema = z.object({
-  email: z.string().trim().toLowerCase().email().max(254),
-  name: z.string().trim().min(1).max(128),
-  role: z.literal(UserRole.AUDITOR), // Story 1.4 widens this to include CLIENT.
-})
+export const createUserRequestSchema = z
+  .object({
+    email: z.string().trim().toLowerCase().email().max(254),
+    name: z.string().trim().min(1).max(128),
+    role: z.enum([UserRole.AUDITOR, UserRole.CLIENT]),
+    assignedStoreIds: z
+      .array(z.string().min(1))
+      .max(ASSIGNED_STORE_IDS_MAX)
+      .default([]),
+  })
+  // Cross-field guard: AUDITOR rows are not store-scoped (the SQL filter
+  // only consults assigned_store_ids when SESSION_CONTEXT('user_role') =
+  // 'CLIENT'). Reject non-empty arrays for AUDITOR creates so the form is
+  // protected against admin-error.
+  .refine(
+    (v) => v.role !== UserRole.AUDITOR || v.assignedStoreIds.length === 0,
+    { message: 'AUDITOR users must have empty assignedStoreIds', path: ['assignedStoreIds'] },
+  )
 export type CreateUserRequest = z.infer<typeof createUserRequestSchema>
 
 export const updateUserRequestSchema = z
@@ -84,10 +101,18 @@ export const updateUserRequestSchema = z
     email: z.string().trim().toLowerCase().email().max(254).optional(),
     name: z.string().trim().min(1).max(128).optional(),
     status: userStatusSchema.optional(),
+    assignedStoreIds: z
+      .array(z.string().min(1))
+      .max(ASSIGNED_STORE_IDS_MAX)
+      .optional(),
   })
   .refine(
-    (v) => v.email !== undefined || v.name !== undefined || v.status !== undefined,
-    { message: 'At least one of email, name, or status must be provided' },
+    (v) =>
+      v.email !== undefined ||
+      v.name !== undefined ||
+      v.status !== undefined ||
+      v.assignedStoreIds !== undefined,
+    { message: 'At least one of email, name, status, or assignedStoreIds must be provided' },
   )
 export type UpdateUserRequest = z.infer<typeof updateUserRequestSchema>
 

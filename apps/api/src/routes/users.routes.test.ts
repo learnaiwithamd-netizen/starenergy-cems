@@ -7,7 +7,7 @@ import { JWT_AUDIENCE, JWT_ISSUER, UserRole } from '@cems/types'
 const { fakeTx, userServiceMock } = vi.hoisted(() => ({
   fakeTx: Symbol('fake-tx'),
   userServiceMock: {
-    createAuditor: vi.fn(),
+    createUser: vi.fn(),
     updateUser: vi.fn(),
     listUsersByRole: vi.fn(),
     adminFindUserById: vi.fn(),
@@ -63,8 +63,18 @@ const sampleAdminUser = {
   name: 'Dev Auditor',
   role: UserRole.AUDITOR,
   status: 'ACTIVE' as const,
+  assignedStoreIds: [] as string[],
   createdAt: '2026-05-07T00:00:00.000Z',
   updatedAt: '2026-05-07T00:00:00.000Z',
+}
+
+const sampleClientUser = {
+  ...sampleAdminUser,
+  id: 'user-100',
+  email: 'client@cems.local',
+  name: 'Dev Client',
+  role: UserRole.CLIENT,
+  assignedStoreIds: ['store-001', 'store-002'],
 }
 
 describe('users.routes', () => {
@@ -88,7 +98,7 @@ describe('users.routes', () => {
 
   describe('POST /api/v1/users', () => {
     it('201 creates an auditor for an ADMIN caller', async () => {
-      userServiceMock.createAuditor.mockResolvedValue(sampleAdminUser)
+      userServiceMock.createUser.mockResolvedValue(sampleAdminUser)
       const app = await buildTestApp()
       const token = await makeToken(UserRole.ADMIN)
       const res = await app.inject({
@@ -131,7 +141,7 @@ describe('users.routes', () => {
     })
 
     it('409 with fixed detail on duplicate email — does not echo the email', async () => {
-      userServiceMock.createAuditor.mockRejectedValue(new UserEmailConflictError())
+      userServiceMock.createUser.mockRejectedValue(new UserEmailConflictError())
       const app = await buildTestApp()
       const token = await makeToken(UserRole.ADMIN)
       const res = await app.inject({
@@ -162,14 +172,54 @@ describe('users.routes', () => {
       await app.close()
     })
 
-    it('422 when role is not AUDITOR (CLIENT support arrives in 1.4)', async () => {
+    it('201 creates a CLIENT user with assignedStoreIds (Story 1.4)', async () => {
+      userServiceMock.createUser.mockResolvedValue(sampleClientUser)
       const app = await buildTestApp()
       const token = await makeToken(UserRole.ADMIN)
       const res = await app.inject({
         method: 'POST',
         url: '/api/v1/users',
         headers: { authorization: `Bearer ${token}` },
-        payload: { email: 'a@b.c', name: 'X', role: 'CLIENT' },
+        payload: {
+          email: 'client@cems.local',
+          name: 'Dev Client',
+          role: 'CLIENT',
+          assignedStoreIds: ['store-001', 'store-002'],
+        },
+      })
+      expect(res.statusCode).toBe(201)
+      const body = JSON.parse(res.body)
+      expect(body.role).toBe('CLIENT')
+      expect(body.assignedStoreIds).toEqual(['store-001', 'store-002'])
+      await app.close()
+    })
+
+    it('422 when AUDITOR is created with non-empty assignedStoreIds (refine)', async () => {
+      const app = await buildTestApp()
+      const token = await makeToken(UserRole.ADMIN)
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/v1/users',
+        headers: { authorization: `Bearer ${token}` },
+        payload: {
+          email: 'a@b.c',
+          name: 'Aud',
+          role: 'AUDITOR',
+          assignedStoreIds: ['store-001'],
+        },
+      })
+      expect(res.statusCode).toBe(422)
+      await app.close()
+    })
+
+    it('422 when role is ADMIN (only AUDITOR + CLIENT allowed)', async () => {
+      const app = await buildTestApp()
+      const token = await makeToken(UserRole.ADMIN)
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/v1/users',
+        headers: { authorization: `Bearer ${token}` },
+        payload: { email: 'a@b.c', name: 'X', role: 'ADMIN' },
       })
       expect(res.statusCode).toBe(422)
       await app.close()
@@ -178,7 +228,12 @@ describe('users.routes', () => {
 
   describe('PATCH /api/v1/users/:id', () => {
     it('200 updates name', async () => {
-      userServiceMock.updateUser.mockResolvedValue({ user: sampleAdminUser, sessionsRevoked: 0, statusChanged: false })
+      userServiceMock.updateUser.mockResolvedValue({
+        user: sampleAdminUser,
+        sessionsRevoked: 0,
+        statusChanged: false,
+        assignedStoreIdsChanged: false,
+      })
       const app = await buildTestApp()
       const token = await makeToken(UserRole.ADMIN)
       const res = await app.inject({
@@ -189,6 +244,32 @@ describe('users.routes', () => {
       })
       expect(res.statusCode).toBe(200)
       expect(JSON.parse(res.body)).toEqual(sampleAdminUser)
+      await app.close()
+    })
+
+    it('200 updates assignedStoreIds (Story 1.4)', async () => {
+      const updatedClient = { ...sampleClientUser, assignedStoreIds: ['store-003'] }
+      userServiceMock.updateUser.mockResolvedValue({
+        user: updatedClient,
+        sessionsRevoked: 0,
+        statusChanged: false,
+        assignedStoreIdsChanged: true,
+      })
+      const app = await buildTestApp()
+      const token = await makeToken(UserRole.ADMIN)
+      const res = await app.inject({
+        method: 'PATCH',
+        url: '/api/v1/users/user-100',
+        headers: { authorization: `Bearer ${token}` },
+        payload: { assignedStoreIds: ['store-003'] },
+      })
+      expect(res.statusCode).toBe(200)
+      const body = JSON.parse(res.body)
+      expect(body.assignedStoreIds).toEqual(['store-003'])
+      // Verify the service was called with the right patch.
+      const serviceCall = userServiceMock.updateUser.mock.calls[0]!
+      expect(serviceCall[0]).toBe('user-100')
+      expect(serviceCall[1]).toEqual({ assignedStoreIds: ['store-003'] })
       await app.close()
     })
 

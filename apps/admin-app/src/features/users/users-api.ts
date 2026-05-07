@@ -10,7 +10,7 @@ import { apiFetch } from '../../lib/api-client'
 
 const USERS_KEY = ['users'] as const
 
-export function useUsersList(filter: { role: 'AUDITOR'; status?: UserStatus }) {
+export function useUsersList(filter: { role: 'AUDITOR' | 'CLIENT'; status?: UserStatus }) {
   const params = new URLSearchParams({ role: filter.role })
   if (filter.status) params.set('status', filter.status)
   return useQuery<ListUsersResponse>({

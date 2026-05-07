@@ -1,6 +1,6 @@
 # Story 1.4: Admin User Management — Client Accounts & Site Assignment
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -37,64 +37,64 @@ Out of scope:
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1 — Widen the create-user input + rename `createAuditor` (AC: #1)**
-  - [ ] In `packages/types/src/auth.ts`, replace `createUserRequestSchema`'s `role: z.literal(UserRole.AUDITOR)` with `role: z.enum([UserRole.AUDITOR, UserRole.CLIENT])`. Add `assignedStoreIds: z.array(z.string().min(1)).max(ASSIGNED_STORE_IDS_MAX).default([])`. **Add a Zod refine: `assignedStoreIds` must be empty when `role === 'AUDITOR'`** (auditors don't have store-scoped access; documented in Dev Notes).
-  - [ ] In `packages/types/src/auth.ts`, extend `updateUserRequestSchema` with `assignedStoreIds: z.array(z.string().min(1)).max(ASSIGNED_STORE_IDS_MAX).optional()`. The existing refine ("at least one field") already accommodates the new optional field.
-  - [ ] In `apps/api/src/services/user.service.ts`, rename `createAuditor` → `createUser`. Change signature to accept `CreateUserRequest` (role + optional assignedStoreIds). Pass `assignedStoreIds` through to the repo's `createUser`. The welcome-email link branch on role: `SURFACE_BY_ROLE[body.role]` → resolve URL via a new `getSurfaceUrl(surface)` helper in `apps/api/src/lib/url.ts`. Audit-log `USER_CREATED` payload now includes `role` (already there) + `assignedStoreIdsCount: assignedStoreIds.length`.
-  - [ ] In `apps/api/src/lib/url.ts`, add `getSurfaceUrl(surface: SurfaceCode): string` that maps `'audit'` → `getAuditAppUrl()`, `'admin'` → `getAdminAppUrl()`, `'client'` → `getClientPortalUrl()`. Used by user.service when composing the welcome-email link.
-  - [ ] In `apps/api/src/services/user.service.ts`, also update `updateUser` to pass `assignedStoreIds` through to the repo's `updateUser` patch when present. Audit-log `USER_UPDATED` payload now includes `assignedStoreIdsChanged: boolean` (true iff the field was touched in this PATCH).
-  - [ ] Update `user.service.test.ts`: add CLIENT-role create cases (with + without assignedStoreIds), update existing AUDITOR test name from `createAuditor` to `createUser`. Add a PATCH-assignedStoreIds case asserting the `assignedStoreIdsChanged` audit-log payload bit.
+- [x] **Task 1 — Widen the create-user input + rename `createAuditor` (AC: #1)**
+  - [x] In `packages/types/src/auth.ts`, replace `createUserRequestSchema`'s `role: z.literal(UserRole.AUDITOR)` with `role: z.enum([UserRole.AUDITOR, UserRole.CLIENT])`. Add `assignedStoreIds: z.array(z.string().min(1)).max(ASSIGNED_STORE_IDS_MAX).default([])`. **Add a Zod refine: `assignedStoreIds` must be empty when `role === 'AUDITOR'`** (auditors don't have store-scoped access; documented in Dev Notes).
+  - [x] In `packages/types/src/auth.ts`, extend `updateUserRequestSchema` with `assignedStoreIds: z.array(z.string().min(1)).max(ASSIGNED_STORE_IDS_MAX).optional()`. The existing refine ("at least one field") already accommodates the new optional field.
+  - [x] In `apps/api/src/services/user.service.ts`, rename `createAuditor` → `createUser`. Change signature to accept `CreateUserRequest` (role + optional assignedStoreIds). Pass `assignedStoreIds` through to the repo's `createUser`. The welcome-email link branch on role: `SURFACE_BY_ROLE[body.role]` → resolve URL via a new `getSurfaceUrl(surface)` helper in `apps/api/src/lib/url.ts`. Audit-log `USER_CREATED` payload now includes `role` (already there) + `assignedStoreIdsCount: assignedStoreIds.length`.
+  - [x] In `apps/api/src/lib/url.ts`, add `getSurfaceUrl(surface: SurfaceCode): string` that maps `'audit'` → `getAuditAppUrl()`, `'admin'` → `getAdminAppUrl()`, `'client'` → `getClientPortalUrl()`. Used by user.service when composing the welcome-email link.
+  - [x] In `apps/api/src/services/user.service.ts`, also update `updateUser` to pass `assignedStoreIds` through to the repo's `updateUser` patch when present. Audit-log `USER_UPDATED` payload now includes `assignedStoreIdsChanged: boolean` (true iff the field was touched in this PATCH).
+  - [x] Update `user.service.test.ts`: add CLIENT-role create cases (with + without assignedStoreIds), update existing AUDITOR test name from `createAuditor` to `createUser`. Add a PATCH-assignedStoreIds case asserting the `assignedStoreIdsChanged` audit-log payload bit.
 
-- [ ] **Task 2 — Widen the routes (AC: #1, #3)**
-  - [ ] In `apps/api/src/routes/users.routes.ts`:
+- [x] **Task 2 — Widen the routes (AC: #1, #3)**
+  - [x] In `apps/api/src/routes/users.routes.ts`:
     - Update the route handler that called `userService.createAuditor` to call `userService.createUser` (now role-agnostic).
     - Update `listQuerySchema` (`role: z.literal(UserRole.AUDITOR)`) to `role: z.enum([UserRole.AUDITOR, UserRole.CLIENT])`. The list endpoint already passes `role` through.
     - PATCH route forwards `assignedStoreIds` from the validated body — no handler change beyond the schema widening.
-  - [ ] Update `users.routes.test.ts`:
+  - [x] Update `users.routes.test.ts`:
     - Add a "201 creates a CLIENT" test case asserting the role + assignedStoreIds round-trip.
     - Add a "422 when AUDITOR is sent with non-empty assignedStoreIds" case proving the cross-field refine.
     - Add a "200 updates assignedStoreIds via PATCH" case.
 
-- [ ] **Task 3 — Stub `GET /api/v1/audits` (AC: #2)**
-  - [ ] Create `apps/api/src/repositories/audit.repo.ts` with `listAuditsForCaller(tx, { take = 50 }): Promise<AuditListItem[]>`. Selects only `{ id, storeId, status, createdAt, updatedAt }` from the Audit Prisma model. Returns the rows as-is — RLS does the filtering at the DB layer.
-  - [ ] Create `apps/api/src/routes/audits.routes.ts` with a single `GET /api/v1/audits` (any authenticated role). Schema: response `{ audits: AuditListItem[], total: number }`. Calls `request.withRls(tx => listAuditsForCaller(tx))`. **No write routes; no `:id` route — those land in Epic 2 / Story 7.1.**
-  - [ ] Add `auditListItemSchema` and `listAuditsResponseSchema` to `packages/types/src/audit.ts` (extend, do NOT replace, the existing exports — Epic 2 will widen these).
-  - [ ] Register `registerAuditsRoutes` in `apps/api/src/app.ts` after `registerUsersRoutes`.
-  - [ ] Add `apps/api/src/routes/audits.routes.test.ts`:
+- [x] **Task 3 — Stub `GET /api/v1/audits` (AC: #2)**
+  - [x] Create `apps/api/src/repositories/audit.repo.ts` with `listAuditsForCaller(tx, { take = 50 }): Promise<AuditListItem[]>`. Selects only `{ id, storeId, status, createdAt, updatedAt }` from the Audit Prisma model. Returns the rows as-is — RLS does the filtering at the DB layer.
+  - [x] Create `apps/api/src/routes/audits.routes.ts` with a single `GET /api/v1/audits` (any authenticated role). Schema: response `{ audits: AuditListItem[], total: number }`. Calls `request.withRls(tx => listAuditsForCaller(tx))`. **No write routes; no `:id` route — those land in Epic 2 / Story 7.1.**
+  - [x] Add `auditListItemSchema` and `listAuditsResponseSchema` to `packages/types/src/audit.ts` (extend, do NOT replace, the existing exports — Epic 2 will widen these).
+  - [x] Register `registerAuditsRoutes` in `apps/api/src/app.ts` after `registerUsersRoutes`.
+  - [x] Add `apps/api/src/routes/audits.routes.test.ts`:
     - 200 with empty array when no audits exist.
     - 200 returns the seeded audits (mock the repo).
     - 401 when no Authorization header.
     - **No role check** — every authenticated role can list (RLS does the per-tenant + per-store filtering).
-  - [ ] Add `apps/api/src/repositories/audit.repo.test.ts` with a mock-tx test verifying `findMany` arg shape.
+  - [x] Add `apps/api/src/repositories/audit.repo.test.ts` with a mock-tx test verifying `findMany` arg shape.
 
-- [ ] **Task 4 — `/me` returns LIVE assignedStoreIds (AC: #3 caveat resolution)**
-  - [ ] Update `apps/api/src/routes/me.routes.ts`: the response builder reads `user.assignedStoreIds` from the freshly-fetched DB row (it already does — the repo's `findActiveUserById` returns the parsed `string[]`). **No code change** is strictly needed — but add a Dev Notes-aligned test asserting that `/me`'s `assignedStoreIds` reflects the LATEST DB state, NOT the JWT's stale claim. Use a mocked repo that returns a different-from-claim value and assert the response.
-  - [ ] Document in the route's JSDoc that `/me`'s `assignedStoreIds` is the source-of-truth for the SPA — "the JWT's `assignedStoreIds` claim is the SECURITY GATE; this field is the UX TRUTH."
+- [x] **Task 4 — `/me` returns LIVE assignedStoreIds (AC: #3 caveat resolution)**
+  - [x] Update `apps/api/src/routes/me.routes.ts`: the response builder reads `user.assignedStoreIds` from the freshly-fetched DB row (it already does — the repo's `findActiveUserById` returns the parsed `string[]`). **No code change** is strictly needed — but add a Dev Notes-aligned test asserting that `/me`'s `assignedStoreIds` reflects the LATEST DB state, NOT the JWT's stale claim. Use a mocked repo that returns a different-from-claim value and assert the response.
+  - [x] Document in the route's JSDoc that `/me`'s `assignedStoreIds` is the source-of-truth for the SPA — "the JWT's `assignedStoreIds` claim is the SECURITY GATE; this field is the UX TRUTH."
 
-- [ ] **Task 5 — client-portal `/set-password` page (AC: #1 client-side)**
-  - [ ] Copy `apps/audit-app/src/features/auth/SetPasswordPage.tsx` and `.test.tsx` to `apps/client-portal/src/features/auth/`. Files are byte-identical (the page reads `?token=` and POSTs to `/api/v1/auth/password-set` — surface-agnostic).
-  - [ ] In `apps/client-portal/src/App.tsx`, add `<Route path="/set-password" element={<SetPasswordPage />} />` as a sibling of `/login` (public). Update import.
-  - [ ] Confirm the test file's describe block reads `client-portal` not `audit-app` — sweep with sed on copy.
+- [x] **Task 5 — client-portal `/set-password` page (AC: #1 client-side)**
+  - [x] Copy `apps/audit-app/src/features/auth/SetPasswordPage.tsx` and `.test.tsx` to `apps/client-portal/src/features/auth/`. Files are byte-identical (the page reads `?token=` and POSTs to `/api/v1/auth/password-set` — surface-agnostic).
+  - [x] In `apps/client-portal/src/App.tsx`, add `<Route path="/set-password" element={<SetPasswordPage />} />` as a sibling of `/login` (public). Update import.
+  - [x] Confirm the test file's describe block reads `client-portal` not `audit-app` — sweep with sed on copy.
 
-- [ ] **Task 6 — admin-app: role-aware UsersPage (AC: #1, #3)**
-  - [ ] Update `apps/admin-app/src/features/users/UsersPage.tsx`:
+- [x] **Task 6 — admin-app: role-aware UsersPage (AC: #1, #3)**
+  - [x] Update `apps/admin-app/src/features/users/UsersPage.tsx`:
     - Add a role tab: `Auditors` / `Clients`. State: `roleFilter: 'AUDITOR' | 'CLIENT'`. The list query passes the selected role. The status filter remains separate.
     - The existing "New auditor" button becomes role-aware: `New {roleFilter === 'CLIENT' ? 'client' : 'auditor'}`.
     - The Dialog form gains a conditional `assignedStoreIds` field (only when `roleFilter === 'CLIENT'`): a free-text input that comma-splits + trims into a `string[]`. Helper text: "Store IDs (comma-separated). Future stories will replace this with a store picker."
     - The table for Clients gains an `Assigned stores` column showing `assignedStoreIds.length` as a count + a tooltip with the comma-joined IDs.
-  - [ ] Update `apps/admin-app/src/features/users/users-api.ts`:
+  - [x] Update `apps/admin-app/src/features/users/users-api.ts`:
     - The hooks already accept `CreateUserRequest` / `UpdateUserRequest` — schema widening means CLIENT + assignedStoreIds flow through automatically. Add an explicit `useUsersList({ role: 'AUDITOR' | 'CLIENT', status?: UserStatus })` overload (already string-typed; just widen the type signature).
     - List response schema needs to include `assignedStoreIds` for CLIENT rows. **This requires extending `adminUserSchema` in `@cems/types/auth.ts`** to add `assignedStoreIds: z.array(z.string()).default([])`. The repo's `listUsersByRole` select clause must include `assignedStoreIds` and parse it (mirror the existing AuthUser parsing).
-  - [ ] Update `UsersPage.test.tsx` — the existing 3 tests stay; add one CLIENT-role render test asserting the assigned-stores column is present + populated for a seeded CLIENT row.
+  - [x] Update `UsersPage.test.tsx` — the existing 3 tests stay; add one CLIENT-role render test asserting the assigned-stores column is present + populated for a seeded CLIENT row.
 
-- [ ] **Task 7 — Audit-log + Dev Notes wire-up (AC: #1, #3)**
-  - [ ] Already covered in Task 1's user.service edits (`assignedStoreIdsCount` on USER_CREATED, `assignedStoreIdsChanged` on USER_UPDATED). Confirm the test assertions land.
+- [x] **Task 7 — Audit-log + Dev Notes wire-up (AC: #1, #3)**
+  - [x] Already covered in Task 1's user.service edits (`assignedStoreIdsCount` on USER_CREATED, `assignedStoreIdsChanged` on USER_UPDATED). Confirm the test assertions land.
 
-- [ ] **Task 8 — Final sweep + docs**
-  - [ ] Run `pnpm turbo run lint type-check test`. Fix any breakage.
-  - [ ] Run `pnpm --filter audit-app exec playwright test` + admin-app + client-portal — regenerate baselines if the home / login / set-password pages drift.
-  - [ ] Update CLAUDE.md "Admin User Management" section: mention CLIENT support + the JWT-staleness caveat with the `/me` recheck mitigation.
-  - [ ] Update story file with checkboxes + Dev Agent Record. Flip sprint-status `1-4 → review`. Final commit.
+- [x] **Task 8 — Final sweep + docs**
+  - [x] Run `pnpm turbo run lint type-check test`. Fix any breakage.
+  - [x] Run `pnpm --filter audit-app exec playwright test` + admin-app + client-portal — regenerate baselines if the home / login / set-password pages drift.
+  - [x] Update CLAUDE.md "Admin User Management" section: mention CLIENT support + the JWT-staleness caveat with the `/me` recheck mitigation.
+  - [x] Update story file with checkboxes + Dev Agent Record. Flip sprint-status `1-4 → review`. Final commit.
 
 ## Dev Notes
 
@@ -252,18 +252,70 @@ claude-opus-4-7[1m]
 
 ### Debug Log References
 
-_(populated by dev-story execution)_
+- 13 net-new api tests (CLIENT 201, AUDITOR-with-storeIds 422, ADMIN-role 422, PATCH assignedStoreIds 200, /me live-storeIds, audit.repo 3, audits.routes 4, +2 service CLIENT cases). API total: **161 passing, 1 skipped** (vs 148/1 before).
+- 1 net-new SPA test (admin-app UsersPage Clients tab + Assigned-stores column). admin-app SetPasswordPage was simply copied to client-portal (4 tests pass identically).
+- Full workspace `pnpm turbo run lint type-check test` — 29/29 successful.
+- Two lint errors mid-implementation: `jsx-a11y/aria-role` flagged my `<RoleTab role="…">` JSX because the prop name `role` shadows the ARIA `role` attribute. Fixed by renaming the prop to `userRole`.
+- One sweep glitch: the 1.3-era "422 when role is not AUDITOR" test in `users.routes.test.ts` had become incorrect after Story 1.4 widening (CLIENT is now valid). Replaced with two new tests: "201 creates a CLIENT" and "422 when AUDITOR is created with non-empty assignedStoreIds".
 
 ### Completion Notes List
 
-_(populated by dev-story execution)_
+✅ **T1 — Schemas + rename.** `createUserRequestSchema` now accepts `role: z.enum([AUDITOR, CLIENT])` + `assignedStoreIds` array, with a cross-field refine rejecting non-empty `assignedStoreIds` for AUDITOR creates. `updateUserRequestSchema` widened with optional `assignedStoreIds`. `adminUserSchema` extended with `assignedStoreIds`. `createAuditor` renamed to `createUser` across user.service + tests + comment references; clean rename, no shim. Welcome-email link routes via `SURFACE_BY_ROLE[role]` → new `getSurfaceUrl(surface)` helper in `lib/url.ts`. Email job templateId is `auditor-welcome` or `client-welcome` per role.
+
+✅ **T2 — Routes widened.** `users.routes.ts` `listQuerySchema` accepts both AUDITOR + CLIENT. POST handler calls `userService.createUser` (renamed). PATCH handler unchanged (the schema widening alone enables `assignedStoreIds` flow-through). New tests: 201 CLIENT create, 422 AUDITOR-with-storeIds, 422 ADMIN-role, 200 PATCH-assignedStoreIds with service-call assertion.
+
+✅ **T3 — Audits stub.** New `audit.repo.ts` `listAuditsForCaller(tx)` returns `{ audits, total }` with the minimum shape Epic 2 / Story 7.1 will widen via `.extend(...)`. New `audits.routes.ts` `GET /api/v1/audits` (no role guard — RLS does the filtering). Schemas live in `@cems/types/audit.ts` (`auditListItemSchema`, `listAuditsResponseSchema`). 7 tests cover empty result, populated result, every-role acceptance, missing-auth 401.
+
+✅ **T4 — `/me` JSDoc + test pin.** Added schema summary + handler comment that explicitly calls out `assignedStoreIds` as the LIVE DB value (UX truth) vs the JWT claim (security gate). New test asserts the response reflects the DB row even when the JWT carries a stale, smaller list.
+
+✅ **T5 — client-portal /set-password.** Byte-identical copy of audit-app's SetPasswordPage + test, wired as a public route. CLIENT welcome links land on `:5175/set-password` and consume the same backend endpoint as auditor links.
+
+✅ **T6 — admin-app role-aware UsersPage.** Added `tablist` with Auditors/Clients tabs, role-aware "New {role}" button, conditional `assignedStoreIds` text input on the create form (comma-separated), and an `Assigned stores` column for CLIENT rows showing the count with a tooltip listing the store IDs. `useUsersList` widened to accept either role. Renamed prop `role` → `userRole` on the inner `RoleTab` component to avoid the jsx-a11y false-positive on ARIA roles.
+
+✅ **T7 — Final sweep + docs.** CLAUDE.md `Admin User Management` section refreshed with CLIENT support, role-aware welcome link, JWT-staleness caveat for `assignedStoreIds`, and the audits-stub note.
+
+**Out-of-scope items NOT done (deferred):**
+- Real store-picker UX in admin-app — Story 6.1 ships the full store reference data API + Story 2.1 ships the auditor-side picker.
+- Real `GET /api/v1/audits` feature — Epic 2 + Story 7.1 replace the stub.
+- Force-refresh of JWTs on `assignedStoreIds` PATCH — accepted staleness, deferred to a future security-hardening story (session_generation column).
+- Bulk client onboarding — out of MVP.
+- Real Resend send — Story 5.5.
+
+**The 0-1 deferred item is now triple-overdue:** auth feature is fully triplicated across all 3 SPAs (audit-app + admin-app + client-portal). The `@cems/web-auth` extraction story is the right cleanup — flagged again in Anti-patterns.
 
 ### File List
 
-_(populated by dev-story execution)_
+**Modified:**
+- `packages/types/src/auth.ts` — widened create/update schemas + adminUserSchema
+- `packages/types/src/audit.ts` — added auditListItemSchema + listAuditsResponseSchema
+- `apps/api/src/lib/url.ts` — added `getSurfaceUrl(surface)`
+- `apps/api/src/lib/auth-errors.ts` — comment update (createAuditor → createUser)
+- `apps/api/src/jobs/queue.ts` — comment update
+- `apps/api/src/services/user.service.ts` — `createAuditor` → `createUser`, role-aware welcome link, `assignedStoreIdsCount` / `assignedStoreIdsChanged` audit-log fields
+- `apps/api/src/services/user.service.test.ts` — new CLIENT cases, rename, PATCH-storeIds test
+- `apps/api/src/repositories/user.repo.ts` — `assignedStoreIds` in admin shape, JSON.stringify on update path
+- `apps/api/src/routes/users.routes.ts` — `listQuerySchema` widened, calls `createUser`
+- `apps/api/src/routes/users.routes.test.ts` — new CLIENT 201 / AUDITOR refine 422 / PATCH storeIds 200 / ADMIN-role 422 cases
+- `apps/api/src/routes/me.routes.ts` — JSDoc note about live storeIds
+- `apps/api/src/routes/me.routes.test.ts` — pin test for live-vs-stale assignedStoreIds
+- `apps/api/src/app.ts` — register audits routes
+- `apps/admin-app/src/features/users/UsersPage.tsx` — role tabs, assigned-stores column, `userRole` prop rename
+- `apps/admin-app/src/features/users/UsersPage.test.tsx` — Clients tab + assigned-stores column test
+- `apps/admin-app/src/features/users/users-api.ts` — `useUsersList` accepts CLIENT
+- `apps/client-portal/src/App.tsx` — wired `/set-password` route
+- `CLAUDE.md`
+- `docs/bmad/_bmad-output/implementation-artifacts/sprint-status.yaml`
+
+**Created:**
+- `apps/api/src/repositories/audit.repo.ts` + `.test.ts`
+- `apps/api/src/routes/audits.routes.ts` + `.test.ts`
+- `apps/client-portal/src/features/auth/SetPasswordPage.tsx` + `.test.tsx` (copy)
+
+**Deleted:** none.
 
 ## Change Log
 
 | Date | Change | Author |
 |---|---|---|
 | 2026-05-07 | Initial story file created from epic 1.4 | create-story (claude-opus-4-7[1m]) |
+| 2026-05-07 | Implementation complete — 7 tasks, 4 ACs satisfied; createUser rename + CLIENT widening + audits stub + client-portal /set-password + admin role tabs; full workspace 29/29 green. Status → review. Closes Epic 1. | dev-story (claude-opus-4-7[1m]) |

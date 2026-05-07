@@ -15,7 +15,7 @@ import * as userService from '../services/user.service.js'
 
 const idParamsSchema = z.object({ id: z.string().min(1) })
 const listQuerySchema = z.object({
-  role: z.literal(UserRole.AUDITOR),
+  role: z.enum([UserRole.AUDITOR, UserRole.CLIENT]),
   status: userStatusSchema.optional(),
 })
 
@@ -26,14 +26,14 @@ export function registerUsersRoutes(app: FastifyInstance): void {
       preHandler: requireRole([UserRole.ADMIN]),
       schema: fastifySchemaFromZod({
         tags: ['admin'],
-        summary: 'Create a new auditor account (Story 1.3)',
+        summary: 'Create a new auditor or client account (Story 1.3 / 1.4)',
         body: createUserRequestSchema,
         response: { 201: adminUserSchema, 401: problemDetailSchema, 403: problemDetailSchema, 409: problemDetailSchema },
       }),
     },
     async (request, reply) => {
       const body = createUserRequestSchema.parse(request.body)
-      const created = await userService.createAuditor(body, { request })
+      const created = await userService.createUser(body, { request })
       return reply.code(201).send(created)
     },
   )
@@ -44,7 +44,7 @@ export function registerUsersRoutes(app: FastifyInstance): void {
       preHandler: requireRole([UserRole.ADMIN]),
       schema: fastifySchemaFromZod({
         tags: ['admin'],
-        summary: 'Update an auditor account (name, email, status)',
+        summary: 'Update an auditor or client account (name, email, status, assignedStoreIds)',
         params: idParamsSchema,
         body: updateUserRequestSchema,
         response: {
@@ -80,7 +80,7 @@ export function registerUsersRoutes(app: FastifyInstance): void {
       preHandler: requireRole([UserRole.ADMIN]),
       schema: fastifySchemaFromZod({
         tags: ['admin'],
-        summary: 'List auditor accounts in the admin’s tenant (RLS)',
+        summary: 'List auditor or client accounts in the admin’s tenant (RLS)',
         querystring: listQuerySchema,
         response: { 200: listUsersResponseSchema, 401: problemDetailSchema, 403: problemDetailSchema },
       }),

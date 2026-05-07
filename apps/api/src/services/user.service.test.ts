@@ -30,7 +30,7 @@ vi.mock('../jobs/queue.js', () => ({
   getEmailNotificationQueue: () => queueMock,
 }))
 
-import { adminFindUserById, createAuditor, listUsersByRole, updateUser, SelfDeactivationError } from './user.service.js'
+import { adminFindUserById, createUser, listUsersByRole, updateUser, SelfDeactivationError } from './user.service.js'
 import { UserEmailConflictError } from '../lib/auth-errors.js'
 
 interface FakeRequest {
@@ -52,8 +52,18 @@ const seededAdmin = {
   name: 'Dev Auditor',
   role: UserRole.AUDITOR,
   status: 'ACTIVE' as const,
+  assignedStoreIds: [] as string[],
   createdAt: '2026-05-07T00:00:00.000Z',
   updatedAt: '2026-05-07T00:00:00.000Z',
+}
+
+const seededClient = {
+  ...seededAdmin,
+  id: 'user-100',
+  email: 'client@cems.local',
+  name: 'Dev Client',
+  role: UserRole.CLIENT,
+  assignedStoreIds: ['store-001', 'store-002'],
 }
 
 describe('user.service', () => {
@@ -64,13 +74,13 @@ describe('user.service', () => {
     vi.clearAllMocks()
   })
 
-  describe('createAuditor', () => {
+  describe('createUser', () => {
     it('creates the user, persists a token, enqueues the welcome email, audits', async () => {
       userRepoMock.createUser.mockResolvedValue(seededAdmin)
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const created = await createAuditor(
-        { email: 'auditor@cems.local', name: 'Dev Auditor', role: UserRole.AUDITOR },
+      const created = await createUser(
+        { email: 'auditor@cems.local', name: 'Dev Auditor', role: UserRole.AUDITOR, assignedStoreIds: [] },
         { request: fakeRequest() as any },
       )
 
@@ -84,19 +94,60 @@ describe('user.service', () => {
         templateId: 'auditor-welcome',
         tenantId: 'tenant-a',
       })
-      expect(enqueueArg.variables.link).toMatch(/\/set-password\?token=/)
+      // AUDITOR welcome links go to audit-app (default :5173).
+      expect(enqueueArg.variables.link).toMatch(/^http:\/\/localhost:5173\/set-password\?token=/)
       expect(auditLogRepoMock.appendLog).toHaveBeenCalledWith(
         fakeTx,
-        expect.objectContaining({ eventType: 'USER_CREATED' }),
+        expect.objectContaining({
+          eventType: 'USER_CREATED',
+          payload: expect.objectContaining({
+            assignedStoreIdsCount: 0,
+          }),
+        }),
       )
+    })
+
+    it('CLIENT create routes the welcome link to client-portal + records storeIds count', async () => {
+      userRepoMock.createUser.mockResolvedValue(seededClient)
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const created = await createUser(
+        {
+          email: 'client@cems.local',
+          name: 'Dev Client',
+          role: UserRole.CLIENT,
+          assignedStoreIds: ['store-001', 'store-002'],
+        },
+        { request: fakeRequest() as any },
+      )
+
+      expect(created.role).toBe(UserRole.CLIENT)
+      expect(created.assignedStoreIds).toEqual(['store-001', 'store-002'])
+      const enqueueArg = queueMock.add.mock.calls[0]![1]
+      expect(enqueueArg.templateId).toBe('client-welcome')
+      // CLIENT welcome links go to client-portal (default :5175).
+      expect(enqueueArg.variables.link).toMatch(/^http:\/\/localhost:5175\/set-password\?token=/)
+      expect(auditLogRepoMock.appendLog).toHaveBeenCalledWith(
+        fakeTx,
+        expect.objectContaining({
+          eventType: 'USER_CREATED',
+          payload: expect.objectContaining({
+            role: UserRole.CLIENT,
+            assignedStoreIdsCount: 2,
+          }),
+        }),
+      )
+      // Repo received the storeIds.
+      const createCall = userRepoMock.createUser.mock.calls[0]!
+      expect(createCall[1].assignedStoreIds).toEqual(['store-001', 'store-002'])
     })
 
     it('maps Prisma P2002 to UserEmailConflictError', async () => {
       userRepoMock.createUser.mockRejectedValue(Object.assign(new Error('unique'), { code: 'P2002' }))
       await expect(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        createAuditor(
-          { email: 'dup@cems.local', name: 'Dup', role: UserRole.AUDITOR },
+        createUser(
+          { email: 'dup@cems.local', name: 'Dup', role: UserRole.AUDITOR, assignedStoreIds: [] },
           { request: fakeRequest() as any },
         ),
       ).rejects.toBeInstanceOf(UserEmailConflictError)
@@ -115,6 +166,24 @@ describe('user.service', () => {
       expect(auditLogRepoMock.appendLog).toHaveBeenCalledWith(
         fakeTx,
         expect.objectContaining({ eventType: 'USER_UPDATED' }),
+      )
+    })
+
+    it('PATCH assignedStoreIds → audit-log payload includes assignedStoreIdsChanged: true (Story 1.4)', async () => {
+      userRepoMock.updateUser.mockResolvedValue({ ...seededClient, assignedStoreIds: ['store-003'] })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const res = await updateUser(
+        'user-100',
+        { assignedStoreIds: ['store-003'] },
+        { request: fakeRequest() as any },
+      )
+      expect(res?.assignedStoreIdsChanged).toBe(true)
+      expect(auditLogRepoMock.appendLog).toHaveBeenCalledWith(
+        fakeTx,
+        expect.objectContaining({
+          eventType: 'USER_UPDATED',
+          payload: expect.objectContaining({ assignedStoreIdsChanged: true }),
+        }),
       )
     })
 

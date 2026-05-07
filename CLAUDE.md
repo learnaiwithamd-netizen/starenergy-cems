@@ -142,14 +142,16 @@ CLIENT_PORTAL_URL=http://localhost:5175
 
 ## Admin User Management (Story 1.3)
 
-- Admins can create, edit, deactivate, and list **auditor accounts** via:
-  - `POST /api/v1/users` (creates the user, generates a one-shot welcome-email link, enqueues a notification job)
-  - `GET /api/v1/users?role=AUDITOR&status=…` (RLS scopes to admin's tenant)
-  - `PATCH /api/v1/users/:id` (name / email / status). Setting `status: INACTIVE` atomically deletes every `user_sessions` row for the user.
-- Admin UI lives at `apps/admin-app` `/users` (under `RequireAuth`).
-- Welcome-email link points to `${AUDIT_APP_URL}/set-password?token=…` — the auditor sets their initial password via `POST /api/v1/auth/password-set`. Token TTL: 24h, one-shot.
+- Admins can create, edit, deactivate, and list **auditor + client accounts** via:
+  - `POST /api/v1/users` (role: AUDITOR or CLIENT; CLIENT bodies include `assignedStoreIds: string[]`)
+  - `GET /api/v1/users?role=AUDITOR|CLIENT&status=…` (RLS scopes to admin's tenant)
+  - `PATCH /api/v1/users/:id` (name / email / status / assignedStoreIds). Setting `status: INACTIVE` atomically deletes every `user_sessions` row for the user.
+- Admin UI lives at `apps/admin-app` `/users` (under `RequireAuth`) with role tabs (Auditors/Clients).
+- Welcome-email link is **role-aware** (Story 1.4): AUDITOR → `${AUDIT_APP_URL}/set-password?token=…`, CLIENT → `${CLIENT_PORTAL_URL}/set-password?token=…`. The user sets their initial password via `POST /api/v1/auth/password-set`. Token TTL: 24h, one-shot.
 - INACTIVE users: `login` returns the same generic 401 as wrong-password (with timing parity via dummy argon2 verify); `/me` returns 401 so the SPA clears its session within one request.
-- Email job is **stub-only** until Story 5.5 — `cems-email-notification-low` is enqueued with `templateId: 'auditor-welcome'`, but no actual Resend send happens yet.
+- **`assignedStoreIds` JWT staleness (Story 1.4)**: the JWT carries the assignment list at issue-time. Updates take effect on the user's next API call AT MOST one access-token TTL (4h) later. `/me` returns the LIVE DB value (not the JWT claim) so SPAs can detect drift and trigger a silent refresh.
+- `GET /api/v1/audits` is a **stub** added in Story 1.4 to validate the RLS audits filter end-to-end. Epic 2 / Story 7.1 ship the full feature. Response shape (`{ audits: AuditListItem[], total }`) is forward-compatible.
+- Email job is **stub-only** until Story 5.5 — `cems-email-notification-low` is enqueued with `templateId: 'auditor-welcome'` or `'client-welcome'`, but no actual Resend send happens yet.
 
 ## Auth Flow (Story 1.1 + 1.2)
 

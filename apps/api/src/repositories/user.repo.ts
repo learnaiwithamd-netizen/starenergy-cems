@@ -77,6 +77,7 @@ export interface UpdateUserPatch {
   email?: string
   name?: string
   status?: UserStatus
+  assignedStoreIds?: string[]
 }
 
 export async function updateUser(
@@ -84,13 +85,21 @@ export async function updateUser(
   id: string,
   patch: UpdateUserPatch,
 ): Promise<AdminUser | null> {
-  // updateMany returns count; we still need a re-fetch to return the row.
-  // Use update directly — but Prisma's `update` throws P2025 if no row matches.
-  // Wrap in a try/catch so missing-id semantics are explicit (returns null).
+  // Translate the partial patch into Prisma's data shape. assignedStoreIds
+  // is stored as a JSON-encoded string in NVARCHAR(MAX); only stringify
+  // when present.
+  const data: Record<string, unknown> = {}
+  if (patch.email !== undefined) data['email'] = patch.email
+  if (patch.name !== undefined) data['name'] = patch.name
+  if (patch.status !== undefined) data['status'] = patch.status
+  if (patch.assignedStoreIds !== undefined) {
+    data['assignedStoreIds'] = JSON.stringify(patch.assignedStoreIds)
+  }
+
   try {
     const row = await tx.user.update({
       where: { id },
-      data: patch,
+      data,
       select: adminUserSelect,
     })
     return toAdminUser(row)
@@ -190,6 +199,7 @@ const adminUserSelect = {
   name: true,
   role: true,
   status: true,
+  assignedStoreIds: true,
   createdAt: true,
   updatedAt: true,
 } as const
@@ -201,11 +211,21 @@ interface AdminUserRow {
   name: string
   role: string
   status: string
+  assignedStoreIds: string
   createdAt: Date
   updatedAt: Date
 }
 
 function toAdminUser(row: AdminUserRow): AdminUser {
+  let assignedStoreIds: string[] = []
+  try {
+    const parsed: unknown = JSON.parse(row.assignedStoreIds)
+    if (Array.isArray(parsed)) {
+      assignedStoreIds = parsed.filter((v): v is string => typeof v === 'string' && v.length > 0)
+    }
+  } catch {
+    assignedStoreIds = []
+  }
   return {
     id: row.id,
     tenantId: row.tenantId,
@@ -213,6 +233,7 @@ function toAdminUser(row: AdminUserRow): AdminUser {
     name: row.name,
     role: row.role as UserRole,
     status: row.status as UserStatus,
+    assignedStoreIds,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   }

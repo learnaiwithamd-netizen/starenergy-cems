@@ -9,7 +9,8 @@ export function registerMeRoutes(app: FastifyInstance): void {
     {
       schema: fastifySchemaFromZod({
         tags: ['auth'],
-        summary: 'Returns the authenticated user profile',
+        summary:
+          'Returns the authenticated user profile. assignedStoreIds is the LIVE DB value, not the JWT claim — see Story 1.4 Dev Notes for the staleness rationale.',
         response: {
           200: meResponseSchema,
           401: problemDetailSchema,
@@ -18,8 +19,14 @@ export function registerMeRoutes(app: FastifyInstance): void {
     },
     async (request, reply) => {
       // The auth hook has populated rlsContext; we trust the JWT for tenant
-      // and storeIds, but we hit the DB to fetch fields the JWT doesn't
-      // carry (email, name) and to confirm the user still exists.
+      // and storeIds (security gate), but we hit the DB to fetch fields the
+      // JWT doesn't carry (email, name) and to confirm the user still exists.
+      //
+      // Story 1.4: this response's `assignedStoreIds` is the LIVE DB value,
+      // NOT the JWT's claim. The JWT claim is the SECURITY GATE (SQL RLS
+      // predicates use SESSION_CONTEXT('assigned_store_ids') from the JWT);
+      // this field is the UX TRUTH so SPAs can detect drift after an admin
+      // PATCH and trigger a silent token refresh.
       const user = await request.withRls((tx) => findActiveUserById(tx, request.rlsContext!.userId))
       if (!user) {
         // User was deleted between token issue and this request.

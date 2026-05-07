@@ -43,7 +43,7 @@ export function getQueues(): Record<QueueName, Queue> {
   return _queues
 }
 
-/** Convenience accessor used by user.service.createAuditor (Story 1.3). */
+/** Convenience accessor used by user.service.createUser (Story 1.3). */
 export function getEmailNotificationQueue(): Queue {
   return getQueues()[QUEUE_NAMES.emailNotification]
 }

@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import type { FastifyRequest } from 'fastify'
 import {
+  SURFACE_BY_ROLE,
   UserRole,
   type AdminUser,
   type CreateUserRequest,
@@ -10,7 +11,7 @@ import {
 } from '@cems/types'
 import { hashPassword } from '../lib/passwords.js'
 import { sha256Hex } from '../lib/tokens.js'
-import { getAuditAppUrl } from '../lib/url.js'
+import { getSurfaceUrl } from '../lib/url.js'
 import { UserEmailConflictError } from '../lib/auth-errors.js'
 import {
   createUser as repoCreateUser,
@@ -24,7 +25,7 @@ import { appendLog } from '../repositories/audit-log.repo.js'
 import { getEmailNotificationQueue } from '../jobs/queue.js'
 
 /**
- * 24-hour window for the auditor to click the welcome-email link and set
+ * 24-hour window for the user to click the welcome-email link and set
  * an initial password. Long enough to survive a weekend; short enough to
  * keep stale tokens from accumulating.
  */
@@ -35,14 +36,21 @@ export interface ServiceContext {
   request: FastifyRequest
 }
 
-// ─── createAuditor ─────────────────────────────────────────────────────
+// ─── createUser (Story 1.3 + 1.4 — handles AUDITOR + CLIENT) ───────────
 
-export async function createAuditor(
+/**
+ * Creates an AUDITOR or CLIENT user account. The Zod
+ * `createUserRequestSchema` cross-field refine guarantees AUDITOR
+ * inputs carry an empty assignedStoreIds; CLIENT inputs may carry
+ * any 0–500 store IDs. Welcome-email link routes to the role's
+ * SPA surface (Auditor → audit-app, Client → client-portal).
+ */
+export async function createUser(
   body: CreateUserRequest,
   ctx: ServiceContext,
 ): Promise<AdminUser> {
   const rls = ctx.request.rlsContext
-  if (!rls) throw new Error('createAuditor requires an authenticated request')
+  if (!rls) throw new Error('createUser requires an authenticated request')
 
   // Generate a strong random initial password the user can never know.
   // Their only path to authentication is the welcome-email link.
@@ -54,6 +62,8 @@ export async function createAuditor(
   const tokenHash = sha256Hex(tokenPlain)
   const expiresAt = new Date(Date.now() + PASSWORD_SET_TOKEN_TTL_MS)
 
+  const assignedStoreIds = body.assignedStoreIds ?? []
+
   const user = await ctx.request.withRls(async (tx) => {
     let created: AdminUser
     try {
@@ -63,6 +73,7 @@ export async function createAuditor(
         name: body.name,
         role: body.role,
         passwordHash,
+        assignedStoreIds,
       })
     } catch (err) {
       if ((err as { code?: string }).code === 'P2002') {
@@ -79,19 +90,26 @@ export async function createAuditor(
     await appendLog(tx, {
       tenantId: rls.tenantId,
       eventType: 'USER_CREATED',
-      payload: { targetUserId: created.id, role: created.role, email: created.email },
+      payload: {
+        targetUserId: created.id,
+        role: created.role,
+        email: created.email,
+        assignedStoreIdsCount: assignedStoreIds.length,
+      },
       actorUserId: rls.userId,
       actorRole: rls.role,
     })
     return created
   })
 
-  // Enqueue welcome email — Story 5.5 wires the actual Resend send.
-  const link = `${getAuditAppUrl()}/set-password?token=${tokenPlain}`
+  // Welcome-email link routes to the role's SPA surface (Story 1.4).
+  const surface = SURFACE_BY_ROLE[body.role]
+  const link = `${getSurfaceUrl(surface)}/set-password?token=${tokenPlain}`
+  const templateId = body.role === UserRole.CLIENT ? 'client-welcome' : 'auditor-welcome'
   const queue = getEmailNotificationQueue()
-  await queue.add('auditor-welcome', {
+  await queue.add(templateId, {
     to: user.email,
-    templateId: 'auditor-welcome',
+    templateId,
     variables: { name: user.name, link, expiresHours: 24 },
     tenantId: rls.tenantId,
   })
@@ -105,6 +123,7 @@ export interface UpdateUserResult {
   user: AdminUser
   sessionsRevoked: number
   statusChanged: boolean
+  assignedStoreIdsChanged: boolean
 }
 
 export async function updateUser(
@@ -134,6 +153,7 @@ export async function updateUser(
 
     let sessionsRevoked = 0
     let statusChanged = false
+    const assignedStoreIdsChanged = patch.assignedStoreIds !== undefined
     if (patch.status === 'INACTIVE') {
       const res = await deleteSessionsByUserId(tx, id)
       sessionsRevoked = res.count
@@ -153,12 +173,12 @@ export async function updateUser(
       eventType,
       payload:
         eventType === 'USER_UPDATED'
-          ? { targetUserId: id, changedFields }
-          : { targetUserId: id, sessionsRevoked, changedFields },
+          ? { targetUserId: id, changedFields, assignedStoreIdsChanged }
+          : { targetUserId: id, sessionsRevoked, changedFields, assignedStoreIdsChanged },
       actorUserId: rls.userId,
       actorRole: rls.role,
     })
-    return { user: updated, sessionsRevoked, statusChanged }
+    return { user: updated, sessionsRevoked, statusChanged, assignedStoreIdsChanged }
   })
 }
 
@@ -187,7 +207,8 @@ export async function adminFindUserById(
     name: found.name,
     role: found.role,
     status: found.status,
-    createdAt: '', // not on AuthUser; route can fetch via admin schema if it needs timestamps
+    assignedStoreIds: found.assignedStoreIds,
+    createdAt: '', // not on AuthUser; route fetches the admin shape directly when timestamps are needed
     updatedAt: '',
   }
 }

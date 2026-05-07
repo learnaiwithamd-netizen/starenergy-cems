@@ -18,18 +18,34 @@ import {
 import { UserRole, type AdminUser, type UserStatus } from '@cems/types'
 import { useCreateUser, useUpdateUser, useUsersList } from './users-api'
 
+type RoleFilter = 'AUDITOR' | 'CLIENT'
+
+const ROLE_LABEL: Record<RoleFilter, { plural: string; singular: string }> = {
+  AUDITOR: { plural: 'Auditor accounts', singular: 'auditor' },
+  CLIENT: { plural: 'Client accounts', singular: 'client' },
+}
+
 export function UsersPage(): JSX.Element {
+  const [roleFilter, setRoleFilter] = useState<RoleFilter>('AUDITOR')
   const [statusFilter, setStatusFilter] = useState<UserStatus | 'ALL'>('ALL')
   const usersQ = useUsersList({
-    role: 'AUDITOR',
+    role: roleFilter,
     ...(statusFilter !== 'ALL' ? { status: statusFilter } : {}),
   })
+
+  const labels = ROLE_LABEL[roleFilter]
 
   return (
     <section aria-labelledby="users-heading">
       <h1 id="users-heading" className="text-2xl font-semibold">
-        Auditor accounts
+        {labels.plural}
       </h1>
+
+      <div role="tablist" aria-label="User role" className="mt-4 flex gap-2">
+        <RoleTab userRole="AUDITOR" active={roleFilter === 'AUDITOR'} onSelect={setRoleFilter} />
+        <RoleTab userRole="CLIENT" active={roleFilter === 'CLIENT'} onSelect={setRoleFilter} />
+      </div>
+
       <div className="mt-4 flex items-center gap-3">
         <label className="text-sm">
           Status:&nbsp;
@@ -43,7 +59,7 @@ export function UsersPage(): JSX.Element {
             <option value="INACTIVE">Inactive</option>
           </select>
         </label>
-        <CreateUserDialogTrigger />
+        <CreateUserDialogTrigger role={roleFilter} />
       </div>
 
       <div className="mt-4">
@@ -54,18 +70,43 @@ export function UsersPage(): JSX.Element {
           </p>
         )}
         {usersQ.data && usersQ.data.users.length === 0 && (
-          <p className="text-sm text-muted">No auditor accounts yet.</p>
+          <p className="text-sm text-muted">No {labels.singular} accounts yet.</p>
         )}
         {usersQ.data && usersQ.data.users.length > 0 && (
-          <UsersTable users={usersQ.data.users} />
+          <UsersTable users={usersQ.data.users} role={roleFilter} />
         )}
       </div>
     </section>
   )
 }
 
-function UsersTable({ users }: { users: AdminUser[] }): JSX.Element {
+function RoleTab({
+  userRole,
+  active,
+  onSelect,
+}: {
+  userRole: RoleFilter
+  active: boolean
+  onSelect: (r: RoleFilter) => void
+}): JSX.Element {
+  return (
+    <button
+      role="tab"
+      type="button"
+      aria-selected={active}
+      onClick={() => onSelect(userRole)}
+      className={`rounded border px-3 py-1 text-sm ${
+        active ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-surface'
+      }`}
+    >
+      {userRole === 'AUDITOR' ? 'Auditors' : 'Clients'}
+    </button>
+  )
+}
+
+function UsersTable({ users, role }: { users: AdminUser[]; role: RoleFilter }): JSX.Element {
   const updateMut = useUpdateUser()
+  const showStores = role === 'CLIENT'
   return (
     <Table>
       <TableHeader>
@@ -73,6 +114,7 @@ function UsersTable({ users }: { users: AdminUser[] }): JSX.Element {
           <TableHead>Name</TableHead>
           <TableHead>Email</TableHead>
           <TableHead>Status</TableHead>
+          {showStores && <TableHead>Assigned stores</TableHead>}
           <TableHead>Created</TableHead>
           <TableHead className="text-right">Actions</TableHead>
         </TableRow>
@@ -83,6 +125,13 @@ function UsersTable({ users }: { users: AdminUser[] }): JSX.Element {
             <TableCell>{u.name}</TableCell>
             <TableCell>{u.email}</TableCell>
             <TableCell>{u.status}</TableCell>
+            {showStores && (
+              <TableCell>
+                <span title={u.assignedStoreIds.join(', ') || 'none'}>
+                  {u.assignedStoreIds.length}
+                </span>
+              </TableCell>
+            )}
             <TableCell>{new Date(u.createdAt).toLocaleDateString()}</TableCell>
             <TableCell className="text-right">
               <Button
@@ -105,39 +154,57 @@ function UsersTable({ users }: { users: AdminUser[] }): JSX.Element {
   )
 }
 
-function CreateUserDialogTrigger(): JSX.Element {
+function CreateUserDialogTrigger({ role }: { role: RoleFilter }): JSX.Element {
   const [open, setOpen] = useState(false)
+  const labels = ROLE_LABEL[role]
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button>New auditor</Button>
+        <Button>New {labels.singular}</Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Create auditor account</DialogTitle>
+          <DialogTitle>Create {labels.singular} account</DialogTitle>
           <DialogDescription>
-            The auditor will receive a welcome email with a link to set their password.
+            The {labels.singular} will receive a welcome email with a link to set their password.
           </DialogDescription>
         </DialogHeader>
-        <CreateUserForm onSuccess={() => setOpen(false)} />
+        <CreateUserForm role={role} onSuccess={() => setOpen(false)} />
       </DialogContent>
     </Dialog>
   )
 }
 
-function CreateUserForm({ onSuccess }: { onSuccess: () => void }): JSX.Element {
+function CreateUserForm({
+  role,
+  onSuccess,
+}: {
+  role: RoleFilter
+  onSuccess: () => void
+}): JSX.Element {
   const createMut = useCreateUser()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
+  const [storeIdsRaw, setStoreIdsRaw] = useState('')
   const [error, setError] = useState<string | null>(null)
+
+  function parseStoreIds(s: string): string[] {
+    return s
+      .split(',')
+      .map((v) => v.trim())
+      .filter((v) => v.length > 0)
+  }
 
   async function onSubmit(e: FormEvent<HTMLFormElement>): Promise<void> {
     e.preventDefault()
     setError(null)
     try {
-      await createMut.mutateAsync({ name, email, role: UserRole.AUDITOR })
+      const assignedStoreIds = role === 'CLIENT' ? parseStoreIds(storeIdsRaw) : []
+      const userRole = role === 'AUDITOR' ? UserRole.AUDITOR : UserRole.CLIENT
+      await createMut.mutateAsync({ name, email, role: userRole, assignedStoreIds })
       setName('')
       setEmail('')
+      setStoreIdsRaw('')
       onSuccess()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create user')
@@ -175,11 +242,29 @@ function CreateUserForm({ onSuccess }: { onSuccess: () => void }): JSX.Element {
           className="mt-1 w-full"
         />
       </div>
+      {role === 'CLIENT' && (
+        <div>
+          <label htmlFor="new-user-stores" className="block text-sm font-medium">
+            Assigned stores
+          </label>
+          <Input
+            id="new-user-stores"
+            value={storeIdsRaw}
+            onChange={(e) => setStoreIdsRaw(e.target.value)}
+            placeholder="store-001, store-002"
+            aria-describedby="new-user-stores-help"
+            className="mt-1 w-full"
+          />
+          <p id="new-user-stores-help" className="mt-1 text-xs text-muted">
+            Store IDs (comma-separated). Future stories will replace this with a store picker.
+          </p>
+        </div>
+      )}
       <div role="alert" aria-live="assertive" className="min-h-[1.25rem] text-sm text-danger">
         {error}
       </div>
       <Button type="submit" disabled={submitDisabled} className="w-full">
-        {createMut.isPending ? 'Creating…' : 'Create auditor'}
+        {createMut.isPending ? 'Creating…' : `Create ${ROLE_LABEL[role].singular}`}
       </Button>
     </form>
   )
