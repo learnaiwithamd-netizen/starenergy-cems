@@ -1,6 +1,6 @@
 # Story 1.1: Email/Password Login & JWT Issuance
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -30,63 +30,63 @@ so that I receive a JWT that grants me access to exactly the surfaces and data m
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1 — Add password hashing primitives (AC: #1, #2)**
-  - [ ] Add `argon2@^0.41.1` to `apps/api/package.json` dependencies. Run `pnpm install` from repo root; verify lockfile updates cleanly.
-  - [ ] Create `apps/api/src/lib/passwords.ts` exporting:
+- [x] **Task 1 — Add password hashing primitives (AC: #1, #2)**
+  - [x] Add `argon2@^0.41.1` to `apps/api/package.json` dependencies. Run `pnpm install` from repo root; verify lockfile updates cleanly.
+  - [x] Create `apps/api/src/lib/passwords.ts` exporting:
     - `hashPassword(plaintext: string): Promise<string>` → wraps `argon2.hash` with `type: argon2.argon2id, memoryCost: 19456, timeCost: 2, parallelism: 1` (OWASP 2024 minimum recommendations for Argon2id).
     - `verifyPassword(hash: string, plaintext: string): Promise<boolean>` → wraps `argon2.verify`, returns false on any thrown error (malformed hash, etc.) — never bubbles.
     - `DUMMY_PASSWORD_HASH` — a precomputed argon2id hash of a random 32-byte string, embedded as a constant. Used by login service to consume time when user is not found (constant-time-ish defense).
-  - [ ] Add `apps/api/src/lib/passwords.test.ts`: round-trip (hash → verify true), wrong password (verify false), malformed hash input (verify false), `DUMMY_PASSWORD_HASH` exists and verifies false against any known plaintext (sanity).
+  - [x] Add `apps/api/src/lib/passwords.test.ts`: round-trip (hash → verify true), wrong password (verify false), malformed hash input (verify false), `DUMMY_PASSWORD_HASH` exists and verifies false against any known plaintext (sanity).
 
-- [ ] **Task 2 — Add token issuance + refresh-token primitives (AC: #1, #5)**
-  - [ ] Create `packages/types/src/auth.ts`:
+- [x] **Task 2 — Add token issuance + refresh-token primitives (AC: #1, #5)**
+  - [x] Create `packages/types/src/auth.ts`:
     - `loginRequestSchema` (Zod): `email: z.string().email().max(254)`, `password: z.string().min(1).max(256)`.
     - `loginResponseSchema`: `accessToken: string`, `refreshToken: string`, `tokenType: z.literal('Bearer')`, `expiresIn: z.number().int().positive()`.
     - `refreshRequestSchema`: `refreshToken: z.string().min(1)`.
     - `logoutRequestSchema`: same as refreshRequestSchema.
     - `accessTokenClaimsSchema`: matches the existing `jwtClaimsSchema` in `apps/api/src/middleware/auth.ts` (sub, tenantId, role, assignedStoreIds, iat, exp). Move/duplicate it here so frontend + API both reference the canonical shape.
     - Constants: `ACCESS_TOKEN_TTL_BY_ROLE: Record<UserRole, number>` (seconds) and `REFRESH_TOKEN_TTL_BY_ROLE: Record<UserRole, number>` (seconds) — Auditor 28800/604800, Admin 14400/86400, Client 14400/86400.
-  - [ ] Re-export from `packages/types/src/index.ts`.
-  - [ ] Update `apps/api/src/middleware/auth.ts` to import `accessTokenClaimsSchema` from `@cems/types` instead of redeclaring locally. Keep `__testing__` exports for back-compat.
-  - [ ] Create `apps/api/src/lib/tokens.ts`:
+  - [x] Re-export from `packages/types/src/index.ts`.
+  - [x] Update `apps/api/src/middleware/auth.ts` to import `accessTokenClaimsSchema` from `@cems/types` instead of redeclaring locally. Keep `__testing__` exports for back-compat.
+  - [x] Create `apps/api/src/lib/tokens.ts`:
     - `issueAccessToken(user: { id, tenantId, role, assignedStoreIds }): Promise<{ token, expiresIn }>` → `new SignJWT(claims).setProtectedHeader({alg:'HS256'}).setIssuedAt().setExpirationTime(now + ttl).sign(getJwtSecret())`.
     - `generateRefreshToken(): { token, hash, expiresAt }` where `token = base64url(randomBytes(64))`, `hash = sha256(token)` (hex), `expiresAt = new Date(Date.now() + ttl * 1000)`. **Caller passes role to determine TTL** — signature: `generateRefreshToken(role: UserRole)`.
     - `hashRefreshToken(token: string): string` — SHA-256 hex; pure function used at lookup time.
     - `getJwtSecret(): Uint8Array` — extracted from `auth.ts` so both sign and verify share one cache. (Move the existing implementation from `auth.ts` here; auth.ts imports from `tokens.ts`.)
-  - [ ] Add `apps/api/src/lib/tokens.test.ts`: sign + verify round-trip; access token has correct `exp` per role (3 cases: Auditor 8h, Admin 4h, Client 4h with ±2s slack); refresh token is base64url and 64+ bytes after decode; `hashRefreshToken(token)` is deterministic; `getJwtSecret` throws on missing/short secret.
+  - [x] Add `apps/api/src/lib/tokens.test.ts`: sign + verify round-trip; access token has correct `exp` per role (3 cases: Auditor 8h, Admin 4h, Client 4h with ±2s slack); refresh token is base64url and 64+ bytes after decode; `hashRefreshToken(token)` is deterministic; `getJwtSecret` throws on missing/short secret.
 
-- [ ] **Task 3 — Add system-auth context + repositories (AC: #1, #5, #6)**
-  - [ ] Create `apps/api/src/lib/system-auth-context.ts`:
+- [x] **Task 3 — Add system-auth context + repositories (AC: #1, #5, #6)**
+  - [x] Create `apps/api/src/lib/system-auth-context.ts`:
     - Exports `SYSTEM_AUTH_CONTEXT: Readonly<RlsContext>` with `tenantId: '__auth_system__'`, `userId: '__auth_system__'`, `role: UserRole.ADMIN`, `assignedStoreIds: []`, frozen with `Object.freeze`.
     - Exports `withSystemAuth<T>(fn): Promise<T>` — wrapper around `withRlsTransaction(prisma, SYSTEM_AUTH_CONTEXT, fn)`.
     - Heavy JSDoc block documenting **why this exists**: the auth flow has no caller-supplied tenant context until *after* user lookup, so it must use a sanctioned RLS bypass. Mention the OR-ADMIN clause in `security.fn_tenant_predicate` makes role=ADMIN bypass the tenant filter; this context exploits that intentionally and is only safe in routes that immediately scope to the resolved user's actual tenant on the very next operation.
     - Add a `// eslint-disable-next-line cems/no-tenant-raw-prisma -- AUDIT-REVIEWED: …` comment if any `$queryRaw` is used (none expected — pure Prisma model calls).
-  - [ ] Create `apps/api/src/repositories/user.repo.ts` exporting `findActiveUserByEmail(email)` → calls `withSystemAuth(tx => tx.user.findFirst({ where: { email } }))`. Returns `User | null`. (Schema currently lacks a `status` field; once Story 1.3 adds it, this query gains `AND status = 'ACTIVE'`. Document this as a deferred-tightening note.)
-  - [ ] Create `apps/api/src/repositories/user-session.repo.ts`:
+  - [x] Create `apps/api/src/repositories/user.repo.ts` exporting `findActiveUserByEmail(email)` → calls `withSystemAuth(tx => tx.user.findFirst({ where: { email } }))`. Returns `User | null`. (Schema currently lacks a `status` field; once Story 1.3 adds it, this query gains `AND status = 'ACTIVE'`. Document this as a deferred-tightening note.)
+  - [x] Create `apps/api/src/repositories/user-session.repo.ts`:
     - `createSession(tx, { tenantId, userId, refreshTokenHash, expiresAt })` → inserts row.
     - `findActiveSessionByHash(refreshTokenHash)` → `withSystemAuth(tx => tx.userSession.findFirst({ where: { refreshTokenHash, revokedAt: null, expiresAt: { gt: new Date() } } }))`.
     - `deleteSessionByHash(tx, refreshTokenHash)` → `tx.userSession.deleteMany({ where: { refreshTokenHash } })`. (deleteMany so unknown-token logout is idempotent.)
     - Tests in `*.test.ts` using a Prisma mock — verify each function builds the right `where` clauses; integration tests (real DB) deferred to a follow-up if time permits.
 
-- [ ] **Task 4 — Add auth service (login, refresh, logout) (AC: #1, #2, #5, #6)**
-  - [ ] Create `apps/api/src/services/auth.service.ts` with three exports:
+- [x] **Task 4 — Add auth service (login, refresh, logout) (AC: #1, #2, #5, #6)**
+  - [x] Create `apps/api/src/services/auth.service.ts` with three exports:
     - `login({ email, password })`: lookup user via `findActiveUserByEmail`. If null, run `verifyPassword(DUMMY_PASSWORD_HASH, password)` to consume time, then throw `InvalidCredentialsError`. If found, run `verifyPassword(user.passwordHash, password)`; on mismatch throw `InvalidCredentialsError`. On success: `withSystemAuth` → call `issueAccessToken(user)` + `generateRefreshToken(user.role)` + `createSession(tx, ...)` in a single transaction. Return `{ accessToken, refreshToken, tokenType: 'Bearer', expiresIn }`.
     - `refresh({ refreshToken })`: hash the input, call `findActiveSessionByHash(hash)`. If null → throw `InvalidCredentialsError` (same generic 401 — no enumeration of expired vs revoked vs unknown). On found: lookup the user via `findActiveUserByEmail` is wrong here — we have the userId on the session row; use a new `findUserById(userId)` repo helper. Then in a `withSystemAuth` transaction: `deleteSessionByHash(tx, oldHash)` + create new session + return tokens.
     - `logout({ refreshToken })`: hash the input, `withSystemAuth(tx => deleteSessionByHash(tx, hash))`. Always returns void (idempotent).
     - `InvalidCredentialsError` class — a discriminated error type the route handler maps to a 401 with the right slug.
-  - [ ] Add `apps/api/src/services/auth.service.test.ts` covering: login success path returns shaped tokens; login with wrong password; login with unknown email runs argon2.verify on dummy (mocked, assert call count ≥ 1); refresh success rotates token (old hash deleted, new row exists); refresh with revoked/expired/unknown all throw `InvalidCredentialsError`; logout deletes session; logout with unknown token is a no-op.
+  - [x] Add `apps/api/src/services/auth.service.test.ts` covering: login success path returns shaped tokens; login with wrong password; login with unknown email runs argon2.verify on dummy (mocked, assert call count ≥ 1); refresh success rotates token (old hash deleted, new row exists); refresh with revoked/expired/unknown all throw `InvalidCredentialsError`; logout deletes session; logout with unknown token is a no-op.
 
-- [ ] **Task 5 — Wire Fastify routes + token-expired error type (AC: #1, #2, #4, #5, #6)**
-  - [ ] Create `apps/api/src/lib/auth-errors.ts` exporting `TokenExpiredError extends Error` (with `statusCode = 401` to integrate with `@fastify/sensible`'s convention) and `InvalidCredentialsError extends Error` (statusCode = 401).
-  - [ ] Update `apps/api/src/middleware/auth.ts`: import `JWTExpired` from `jose/errors`. In the catch block of `jwtVerify`, branch: if `err instanceof JWTExpired` (use `err.name === 'JWTExpired'` for compat) → throw `new TokenExpiredError('Access token expired')`. Else keep the current `httpErrors.unauthorized('Invalid token')`.
-  - [ ] Update `apps/api/src/middleware/error-handler.ts`: add a branch *before* the generic 401 mapping: `if (error instanceof TokenExpiredError) { problem = buildProblemDetail(401, 'Access token expired', instance); problem.type = '${PROBLEM_BASE}/token-expired'; … }` — or extend `STATUS_TO_SLUG` lookups to take an optional override. Cleanest: add a helper `buildProblemDetailWithSlug(status, slug, title, detail, instance)` and call it from this branch. Add a similar branch for `InvalidCredentialsError` that emits the existing `'authentication-required'` slug + `detail: 'Invalid email or password'`.
-  - [ ] Create `apps/api/src/routes/auth.routes.ts`. Three routes registered under `/api/v1/auth/`:
+- [x] **Task 5 — Wire Fastify routes + token-expired error type (AC: #1, #2, #4, #5, #6)**
+  - [x] Create `apps/api/src/lib/auth-errors.ts` exporting `TokenExpiredError extends Error` (with `statusCode = 401` to integrate with `@fastify/sensible`'s convention) and `InvalidCredentialsError extends Error` (statusCode = 401).
+  - [x] Update `apps/api/src/middleware/auth.ts`: import `JWTExpired` from `jose/errors`. In the catch block of `jwtVerify`, branch: if `err instanceof JWTExpired` (use `err.name === 'JWTExpired'` for compat) → throw `new TokenExpiredError('Access token expired')`. Else keep the current `httpErrors.unauthorized('Invalid token')`.
+  - [x] Update `apps/api/src/middleware/error-handler.ts`: add a branch *before* the generic 401 mapping: `if (error instanceof TokenExpiredError) { problem = buildProblemDetail(401, 'Access token expired', instance); problem.type = '${PROBLEM_BASE}/token-expired'; … }` — or extend `STATUS_TO_SLUG` lookups to take an optional override. Cleanest: add a helper `buildProblemDetailWithSlug(status, slug, title, detail, instance)` and call it from this branch. Add a similar branch for `InvalidCredentialsError` that emits the existing `'authentication-required'` slug + `detail: 'Invalid email or password'`.
+  - [x] Create `apps/api/src/routes/auth.routes.ts`. Three routes registered under `/api/v1/auth/`:
     - `POST /login` — schema = `loginRequestSchema` body, `loginResponseSchema | problemDetailSchema` response. Calls `authService.login(body)`. Wrap `InvalidCredentialsError` → re-throw (handler converts to 401).
     - `POST /refresh` — schema = `refreshRequestSchema` body, same response.
     - `POST /logout` — schema = `logoutRequestSchema` body, 204 response. Always returns 204 even on unknown-token case.
     - All three use `fastifySchemaFromZod({ tags: ['auth'], summary, body, response })` so they appear in the OpenAPI doc at `/api/v1/docs`.
-  - [ ] Register the routes in `apps/api/src/app.ts` after `registerDbHealthRoute(app)`. Confirm public-route allowlist already includes `/api/v1/auth/login` and `/api/v1/auth/refresh`; **add `/api/v1/auth/logout`** to `PUBLIC_ROUTES` in `auth.ts` so a client without a valid access token can still log out.
-  - [ ] Add `apps/api/src/routes/auth.routes.test.ts` using `supertest` (already installed) and `buildApp()`:
+  - [x] Register the routes in `apps/api/src/app.ts` after `registerDbHealthRoute(app)`. Confirm public-route allowlist already includes `/api/v1/auth/login` and `/api/v1/auth/refresh`; **add `/api/v1/auth/logout`** to `PUBLIC_ROUTES` in `auth.ts` so a client without a valid access token can still log out.
+  - [x] Add `apps/api/src/routes/auth.routes.test.ts` using `supertest` (already installed) and `buildApp()`:
     - Login with seeded test user → 200 with valid tokens; access token decodes and has role-specific exp.
     - Login with wrong password → 401, problem detail shape, no `email`/`password` field disclosure in `detail`, **and** request timing within ±200ms of the unknown-email case (loose timing assertion guards against regression of the dummy-hash check).
     - Login with unknown email → same 401 shape.
@@ -97,11 +97,11 @@ so that I receive a JWT that grants me access to exactly the surfaces and data m
     - Logout with valid token → 204.
     - Logout with unknown token → 204 (idempotent).
 
-- [ ] **Task 6 — Local-dev seed script + docs (AC: enables AC1 verification)**
-  - [ ] Create `packages/db/scripts/seed-test-users.ts`. Reads `DATABASE_URL`, hashes a literal default password (`'password123!'` — sentinel, dev-only), and upserts three users in tenant `'tenant-dev'`: `admin@cems.local` (ADMIN), `auditor@cems.local` (AUDITOR), `client@cems.local` (CLIENT, with `assignedStoreIds: ["store-001"]`). Idempotent (uses `prisma.user.upsert` keyed on `(tenantId, email)`).
-  - [ ] Add `"db:seed:test-users": "tsx scripts/seed-test-users.ts"` to `packages/db/package.json` scripts. Use existing `tsx` dev dep.
-  - [ ] Add a "Local auth setup" subsection in root `CLAUDE.md` (under Commands) showing the three default credentials + a `curl` example for `POST /api/v1/auth/login`. Make it explicit these are dev-only.
-  - [ ] Do NOT seed in CI or any deployed environment — script must `process.exit(1)` if `NODE_ENV === 'production'`.
+- [x] **Task 6 — Local-dev seed script + docs (AC: enables AC1 verification)**
+  - [x] Create `packages/db/scripts/seed-test-users.ts`. Reads `DATABASE_URL`, hashes a literal default password (`'password123!'` — sentinel, dev-only), and upserts three users in tenant `'tenant-dev'`: `admin@cems.local` (ADMIN), `auditor@cems.local` (AUDITOR), `client@cems.local` (CLIENT, with `assignedStoreIds: ["store-001"]`). Idempotent (uses `prisma.user.upsert` keyed on `(tenantId, email)`).
+  - [x] Add `"db:seed:test-users": "tsx scripts/seed-test-users.ts"` to `packages/db/package.json` scripts. Use existing `tsx` dev dep.
+  - [x] Add a "Local auth setup" subsection in root `CLAUDE.md` (under Commands) showing the three default credentials + a `curl` example for `POST /api/v1/auth/login`. Make it explicit these are dev-only.
+  - [x] Do NOT seed in CI or any deployed environment — script must `process.exit(1)` if `NODE_ENV === 'production'`.
 
 ## Dev Notes
 
@@ -295,18 +295,74 @@ claude-opus-4-7[1m]
 
 ### Debug Log References
 
-_(populated by dev-story execution)_
+- 98 vitest tests passing in `apps/api` (1 SKIP — the deliberate axe-violation fixture from 0-8). Net new: 8 password tests + 14 token tests + 5 user-repo + 5 user-session-repo + 8 service tests + 11 route tests + 4 auth-middleware extensions = 55 new tests.
+- Full workspace `pnpm turbo run lint type-check test` — 29/29 successful. SPA Vitest + a11y gates from 0-8 still green.
+- Manual axe gate sanity check from 0-8 still passes (unrelated, but verified the regression-free state).
+- argon2 native module compiled successfully on macOS arm64 + cached for Linux CI via pnpm.
+- Two non-trivial debug iterations during implementation:
+  1. `vi.mock` factory referenced top-level constants → fixed via `vi.hoisted()` block.
+  2. After requiring `iss`/`aud` in jwtVerify, the existing `rls-request.test.ts` and `auth.test.ts` test fixtures broke (their `makeToken` helper didn't set issuer/audience). Updated both fixtures to set `JWT_ISSUER` + `JWT_AUDIENCE` from `@cems/types`.
 
 ### Completion Notes List
 
-_(populated by dev-story execution)_
+✅ **T1 — passwords.ts (argon2id) + tests.** `argon2@^0.41.1` added to `apps/api` deps (and `packages/db` for the seed script). Argon2id params pinned to OWASP 2024 minimums (memoryCost 19 MiB, timeCost 2, parallelism 1). `getDummyPasswordHash()` is lazy + cached — first auth flow on cold start eats one ~30ms cost; subsequent flows reuse the cached promise.
+
+✅ **T2 — auth types + tokens.ts + tests.** New `packages/types/src/auth.ts` exports `loginRequestSchema`, `loginResponseSchema`, `refreshRequestSchema`, `logoutRequestSchema`, `accessTokenClaimsSchema`, `ACCESS_TOKEN_TTL_BY_ROLE`, `REFRESH_TOKEN_TTL_BY_ROLE`, `JWT_ISSUER`, `JWT_AUDIENCE`, `ASSIGNED_STORE_IDS_MAX`. `apps/api/src/lib/tokens.ts` houses `getJwtSecret`, `issueAccessToken`, `generateRefreshToken`, `hashRefreshToken`, plus `__resetJwtSecretCacheForTests`. Auth middleware now imports the shared schema instead of redeclaring it.
+
+✅ **T3 — system-auth-context + repos + tests.** `SYSTEM_AUTH_CONTEXT` is a frozen sentinel `{ tenantId: '__auth_system__', userId: '__auth_system__', role: 'ADMIN', assignedStoreIds: [] }`. `withSystemAuth(fn)` wraps `withRlsTransaction(prisma, SYSTEM_AUTH_CONTEXT, fn)`. Repos accept `tx` parameter (consistent with `audit-log.repo.ts`) so unit tests mock `tx` directly without the system-auth indirection. `assignedStoreIds` parsing in `user.repo.ts` defends against malformed JSON, non-string entries, and empty strings — confirmed by tests.
+
+✅ **T4 — auth.service.ts + tests.** `login` runs argon2 verify against the dummy hash on the unknown-email branch (timing-attack defence). `refresh` deletes the old session row BEFORE creating the new one (assertion in test verifies call order). Orphan-session case (session row pointing at a deleted user) returns the same generic 401. Tests use `vi.hoisted` + `vi.mock` to stub the system-auth-context and both repos.
+
+✅ **T5 — auth-errors + middleware updates + routes.** `TokenExpiredError` and `InvalidCredentialsError` extend Error with `statusCode = 401`; the global error-handler intercepts them BEFORE the generic 401 path to inject the right RFC 7807 slug (`token-expired` and `authentication-required` respectively). `/api/v1/auth/logout` added to `PUBLIC_ROUTES`. The auth middleware now (a) enforces `iss: 'cems'` + `aud: 'cems-api'`, (b) handles `Authorization` header arriving as `string[]` defensively, (c) branches on `joseErrors.JWTExpired` to surface `TokenExpiredError`. Three new auth routes registered in `app.ts`.
+
+**0-4 deferred items addressed inline:**
+- ✅ JWT iss/aud enforcement — `setIssuer/setAudience` on issuance + `issuer/audience` options on verify.
+- ✅ `Authorization: string[]` defensive cast — handled in `auth.ts`.
+- ✅ `assignedStoreIds.max(500)` — pinned via `ASSIGNED_STORE_IDS_MAX` in shared schema.
+- ✅ Boot-time JWT_SECRET length check — already in `getJwtSecret`; centralised in `tokens.ts`.
+- ❌ CORS / OPTIONS preflight handling — out of scope, deferred to Story 1.2 (front-end integration).
+
+✅ **T6 — seed script + CLAUDE.md docs.** `packages/db/scripts/seed-test-users.ts` is idempotent (`prisma.user.upsert` keyed on `(tenantId, email)`), refuses to run with `NODE_ENV=production`, and seeds three users (admin/auditor/client) into `tenant-dev` with default password `password123!`. CLAUDE.md updated with the auth section + curl example.
+
+**Out-of-scope items NOT done (deferred):**
+- CORS / OPTIONS preflight on protected routes (deferred to 1.2 per story plan).
+- Failed-login rate limiting / lockout (future security-hardening story).
+- Multi-tenant tenant resolver (subdomain-based or header-based — needs schema work; out of MVP scope).
+- Inactivity-based session expiry (the architecture documents NFR-S6 with a "TBD inactivity timeout"; current TTLs only cover hard expiry).
+- The `User` table still has no `status` column — Story 1.3 will add it; until then `findActiveUserByEmail` is forward-compatible (no `status: 'ACTIVE'` clause needed today).
+
+**Library reconciliation note:** The story spec referenced `DUMMY_PASSWORD_HASH` as an exported constant. The implementation exposes it as `getDummyPasswordHash(): Promise<string>` instead — a lazy cached function — so the cost of computing the hash is paid once at first login attempt rather than once per cold module import. Functionally equivalent; documented in the Dev Notes-anti-pattern section retroactively.
 
 ### File List
 
-_(populated by dev-story execution)_
+**Modified:**
+- `apps/api/package.json` (added `argon2`, `@types/supertest`)
+- `apps/api/src/middleware/auth.ts` (imports shared claims schema, branches on `JWTExpired`, defensive header cast, iss/aud enforcement)
+- `apps/api/src/middleware/auth.test.ts` (updated `makeToken` to set iss/aud; new tests for token-expired, missing-iss, wrong-aud, header-array)
+- `apps/api/src/middleware/error-handler.ts` (TokenExpiredError + InvalidCredentialsError branches with custom slug; `buildProblemDetail` accepts `slugOverride`)
+- `apps/api/src/middleware/rls-request.test.ts` (updated `makeToken` to set iss/aud)
+- `apps/api/src/app.ts` (registers `registerAuthRoutes`)
+- `packages/db/package.json` (added `argon2`, `tsx`, `db:seed:test-users` script)
+- `packages/types/src/index.ts` (re-exports `auth.js`)
+- `pnpm-lock.yaml` (regenerated)
+- `CLAUDE.md` (local-auth setup section)
+- `docs/bmad/_bmad-output/implementation-artifacts/sprint-status.yaml` (status: in-progress → review)
+
+**Created:**
+- `packages/types/src/auth.ts`
+- `apps/api/src/lib/passwords.ts` + `passwords.test.ts`
+- `apps/api/src/lib/tokens.ts` + `tokens.test.ts`
+- `apps/api/src/lib/system-auth-context.ts`
+- `apps/api/src/lib/auth-errors.ts`
+- `apps/api/src/repositories/user.repo.ts` + `user.repo.test.ts`
+- `apps/api/src/repositories/user-session.repo.ts` + `user-session.repo.test.ts`
+- `apps/api/src/services/auth.service.ts` + `auth.service.test.ts`
+- `apps/api/src/routes/auth.routes.ts` + `auth.routes.test.ts`
+- `packages/db/scripts/seed-test-users.ts`
 
 ## Change Log
 
 | Date | Change | Author |
 |---|---|---|
 | 2026-05-07 | Initial story file created from epic 1.1 | create-story (claude-opus-4-7[1m]) |
+| 2026-05-07 | Implementation complete — all 6 tasks satisfied; 55 new vitest tests passing; full workspace 29/29 green; 4 of 5 0-4 deferred items folded in. Status → review. | dev-story (claude-opus-4-7[1m]) |

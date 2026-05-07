@@ -1,8 +1,9 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify'
-import { jwtVerify } from 'jose'
-import { z } from 'zod'
-import { UserRole } from '@cems/types'
+import { jwtVerify, errors as joseErrors } from 'jose'
+import { accessTokenClaimsSchema, JWT_ISSUER, JWT_AUDIENCE } from '@cems/types'
 import type { RlsContext } from '@cems/db'
+import { getJwtSecret } from '../lib/tokens.js'
+import { TokenExpiredError } from '../lib/auth-errors.js'
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -20,6 +21,7 @@ const PUBLIC_ROUTES = new Set<string>([
   '/api/v1/docs/yaml',
   '/api/v1/auth/login',
   '/api/v1/auth/refresh',
+  '/api/v1/auth/logout',
 ])
 
 // Static assets served by @fastify/swagger-ui live under `/api/v1/docs/static/...`.
@@ -27,47 +29,11 @@ const PUBLIC_ROUTES = new Set<string>([
 // `/api/v1/docs/admin-internal` does not become accidentally public.
 const PUBLIC_STATIC_PREFIX = '/api/v1/docs/static/'
 
-const jwtClaimsSchema = z.object({
-  sub: z.string().min(1),
-  tenantId: z.string().min(1),
-  role: z.nativeEnum(UserRole),
-  assignedStoreIds: z.array(z.string()).default([]),
-  iat: z.number().int(),
-  exp: z.number().int(),
-})
-
 function isPublicRoute(url: string): boolean {
   // Strip query string and trailing slash
   const path = (url.split('?')[0] ?? url).replace(/\/$/, '') || '/'
   if (PUBLIC_ROUTES.has(path)) return true
   return path.startsWith(PUBLIC_STATIC_PREFIX)
-}
-
-let _cachedSecretBytes: Uint8Array | undefined
-let _cachedSecretSource: string | undefined
-
-/**
- * Returns the HS256 signing key. Validates length ≥ 32 bytes (HS256 minimum per RFC 7518 §3.2).
- * Cached on first call so a mid-process JWT_SECRET env mutation does NOT silently take effect —
- * secret rotation requires a process restart (matches deployed-env behaviour where Key Vault
- * references are read at App Service start).
- */
-function getJwtSecret(): Uint8Array {
-  const secret = process.env['JWT_SECRET']
-  if (!secret) {
-    throw new Error('JWT_SECRET is not set')
-  }
-  if (secret.length < 32) {
-    throw new Error(
-      `JWT_SECRET must be at least 32 characters (HS256 RFC 7518 §3.2). Got ${secret.length}.`,
-    )
-  }
-  if (_cachedSecretBytes && _cachedSecretSource === secret) {
-    return _cachedSecretBytes
-  }
-  _cachedSecretBytes = new TextEncoder().encode(secret)
-  _cachedSecretSource = secret
-  return _cachedSecretBytes
 }
 
 const BEARER_PREFIX_RE = /^bearer\s+/i
@@ -80,7 +46,10 @@ export function registerAuthHook(app: FastifyInstance): void {
       return
     }
 
-    const authHeader = request.headers.authorization
+    // Defensive: undici accepts duplicate header values as `string[]`. Accept
+    // the first entry only — RFC 9110 §5.3 lets us reject ambiguous headers.
+    const rawAuthHeader = request.headers.authorization
+    const authHeader = Array.isArray(rawAuthHeader) ? rawAuthHeader[0] : rawAuthHeader
     if (!authHeader || !BEARER_PREFIX_RE.test(authHeader)) {
       // RFC 7235 §4.1 — challenge unauthenticated clients with WWW-Authenticate.
       void reply.header('WWW-Authenticate', 'Bearer')
@@ -98,15 +67,25 @@ export function registerAuthHook(app: FastifyInstance): void {
       const result = await jwtVerify(token, getJwtSecret(), {
         algorithms: ['HS256'],
         clockTolerance: '5s',
+        issuer: JWT_ISSUER,
+        audience: JWT_AUDIENCE,
       })
       payload = result.payload
     } catch (err) {
+      // Surface "expired" as its own slug (token-expired) so SPA refresh logic
+      // can branch on `problem.type`. All other verify failures collapse to
+      // "invalid_token" — bad signature / iss / aud / malformed JWT.
+      if (err instanceof joseErrors.JWTExpired) {
+        request.log.warn({ err: { name: err.name } }, 'jwt expired')
+        void reply.header('WWW-Authenticate', 'Bearer error="invalid_token"')
+        throw new TokenExpiredError('Access token expired')
+      }
       request.log.warn({ err }, 'jwt verify failed')
       void reply.header('WWW-Authenticate', 'Bearer error="invalid_token"')
       throw app.httpErrors.unauthorized('Invalid token')
     }
 
-    const claims = jwtClaimsSchema.safeParse(payload)
+    const claims = accessTokenClaimsSchema.safeParse(payload)
     if (!claims.success) {
       request.log.warn({ errors: claims.error.errors }, 'jwt payload schema mismatch')
       void reply.header('WWW-Authenticate', 'Bearer error="invalid_token"')
@@ -122,4 +101,4 @@ export function registerAuthHook(app: FastifyInstance): void {
   })
 }
 
-export const __testing__ = { isPublicRoute, jwtClaimsSchema }
+export const __testing__ = { isPublicRoute }

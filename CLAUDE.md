@@ -39,6 +39,16 @@ pnpm --filter client-portal dev      # :5175
 pnpm --filter @cems/db db:migrate:dev    # Apply migrations in dev
 pnpm --filter @cems/db db:generate       # Regenerate Prisma client after schema change
 pnpm --filter @cems/db db:studio         # Open Prisma Studio
+pnpm --filter @cems/db db:seed:test-users  # Seed admin/auditor/client into tenant-dev (DEV ONLY)
+
+# Local auth — three default users seeded by db:seed:test-users (tenant `tenant-dev`):
+#   admin@cems.local      ADMIN     password123!
+#   auditor@cems.local    AUDITOR   password123!
+#   client@cems.local     CLIENT    password123!  (assignedStoreIds: ["store-001"])
+# Login example:
+#   curl -sS http://localhost:3001/api/v1/auth/login \
+#     -H 'Content-Type: application/json' \
+#     -d '{"email":"auditor@cems.local","password":"password123!"}'
 
 # Python calc service (run from apps/calc-service)
 uvicorn app.main:app --reload            # Dev server on :8000

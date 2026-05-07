@@ -16,7 +16,6 @@ function IconOnlyButtonWithoutAriaLabel() {
   return (
     <main>
       <button type="button">
-        {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
         <svg width="24" height="24" aria-hidden="true" />
       </button>
     </main>

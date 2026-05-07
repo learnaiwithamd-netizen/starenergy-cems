@@ -2,10 +2,11 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import Fastify, { type FastifyInstance } from 'fastify'
 import sensible from '@fastify/sensible'
 import { SignJWT } from 'jose'
-import { UserRole } from '@cems/types'
+import { JWT_AUDIENCE, JWT_ISSUER, UserRole } from '@cems/types'
 import { registerAuthHook } from './auth.js'
 import { registerRlsRequestHook } from './rls-request.js'
 import { buildErrorHandler } from './error-handler.js'
+import { __resetJwtSecretCacheForTests } from '../lib/tokens.js'
 
 const FAKE_JWT_SECRET = 'unit-test-secret-do-not-use-in-prod-min-32-chars-long'
 
@@ -54,6 +55,8 @@ import { registerRlsRequestHook as _registerHook } from './rls-request.js'
 async function makeToken(claims: Record<string, unknown>): Promise<string> {
   return new SignJWT(claims)
     .setProtectedHeader({ alg: 'HS256' })
+    .setIssuer(JWT_ISSUER)
+    .setAudience(JWT_AUDIENCE)
     .setIssuedAt()
     .setExpirationTime('5m')
     .sign(new TextEncoder().encode(FAKE_JWT_SECRET))
@@ -70,6 +73,7 @@ describe('rls-request hook', () => {
 
   beforeEach(() => {
     process.env['JWT_SECRET'] = FAKE_JWT_SECRET
+    __resetJwtSecretCacheForTests()
     // Make the lazy Prisma client construct fail predictably — we don't want it to try
     // connecting in unit tests. The withRls test uses a SENTINEL throw before any DB call.
     if (!process.env['DATABASE_URL']) {
@@ -80,6 +84,7 @@ describe('rls-request hook', () => {
   afterEach(() => {
     if (originalSecret === undefined) delete process.env['JWT_SECRET']
     else process.env['JWT_SECRET'] = originalSecret
+    __resetJwtSecretCacheForTests()
     if (originalDbUrl === undefined) delete process.env['DATABASE_URL']
     else process.env['DATABASE_URL'] = originalDbUrl
   })

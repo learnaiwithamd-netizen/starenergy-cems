@@ -9,6 +9,7 @@ import { fastifySchemaFromZod } from './lib/schema.js'
 import { buildErrorHandler } from './middleware/error-handler.js'
 import { registerAuthHook } from './middleware/auth.js'
 import { registerRlsRequestHook } from './middleware/rls-request.js'
+import { registerAuthRoutes } from './routes/auth.routes.js'
 import { registerDbHealthRoute } from './routes/db-health.js'
 
 declare module 'fastify' {
@@ -86,6 +87,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   )
 
   registerDbHealthRoute(app)
+  registerAuthRoutes(app)
 
   return app
 }

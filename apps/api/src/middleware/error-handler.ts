@@ -2,6 +2,7 @@ import type { FastifyError, FastifyReply, FastifyRequest } from 'fastify'
 import type { ProblemDetail } from '@cems/types'
 import { ZodError } from 'zod'
 import { CalcServiceError } from '../lib/calc-service-client.js'
+import { InvalidCredentialsError, TokenExpiredError } from '../lib/auth-errors.js'
 
 const PROBLEM_BASE = 'https://cems.starenergy.ca/errors'
 
@@ -34,8 +35,9 @@ function buildProblemDetail(
   detail: string,
   instance: string,
   errors?: Array<{ field: string; message: string }>,
+  slugOverride?: string,
 ): ProblemDetail {
-  const slug = STATUS_TO_SLUG[status] ?? 'internal-error'
+  const slug = slugOverride ?? STATUS_TO_SLUG[status] ?? 'internal-error'
   const title = STATUS_TO_TITLE[status] ?? 'Internal Server Error'
   return {
     type: `${PROBLEM_BASE}/${slug}`,
@@ -59,6 +61,33 @@ export function buildErrorHandler() {
     reply: FastifyReply,
   ): void {
     const instance = request.url
+
+    // Auth-flow expired-token → 401 with token-expired slug. Branch BEFORE
+    // the generic 401 mapping so the SPA refresh flow can branch on
+    // `problem.type`.
+    if (error instanceof TokenExpiredError) {
+      const problem = buildProblemDetail(
+        401,
+        error.message,
+        instance,
+        undefined,
+        'token-expired',
+      )
+      request.log.warn({ err: error, request_id: request.id }, 'access token expired')
+      reply.code(401).type('application/problem+json').send(problem)
+      return
+    }
+
+    // Auth-flow credential mismatch → 401 with the standard
+    // authentication-required slug + the EXACT same body the unknown-email
+    // path produces (no enumeration). Caller-supplied detail is overridden
+    // here to guarantee the no-leak invariant.
+    if (error instanceof InvalidCredentialsError) {
+      const problem = buildProblemDetail(401, 'Invalid email or password', instance)
+      request.log.warn({ request_id: request.id }, 'login attempt rejected')
+      reply.code(401).type('application/problem+json').send(problem)
+      return
+    }
 
     // Calc-service failures → 503 (timeout / breaker open / upstream error / bad response).
     if (error instanceof CalcServiceError) {
