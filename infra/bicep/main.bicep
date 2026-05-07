@@ -296,6 +296,7 @@ module containerApps 'modules/containerapps.bicep' = {
     acrLoginServer: acr.outputs.acrLoginServer
     imageTag: calcServiceImageTag
     image: empty(calcServiceImageOverride) ? '${acr.outputs.acrLoginServer}/calc-service:${calcServiceImageTag}' : calcServiceImageOverride
+    configureAcrRegistry: empty(calcServiceImageOverride)
     cpu: containerAppsConfig.cpu
     memory: containerAppsConfig.memory
     minReplicas: containerAppsConfig.minReplicas

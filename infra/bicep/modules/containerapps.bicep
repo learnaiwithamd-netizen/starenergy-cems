@@ -29,6 +29,9 @@ param imageTag string = 'latest'
 @description('Override container image. Defaults to {acrLoginServer}/calc-service:{imageTag}.')
 param image string = '${acrLoginServer}/calc-service:${imageTag}'
 
+@description('When true, configures ACR registry credentials on the Container App. Set false for bootstrap with a public placeholder image.')
+param configureAcrRegistry bool = true
+
 @description('CPU cores')
 param cpu string = '0.25'
 
@@ -104,12 +107,12 @@ resource calcApp 'Microsoft.App/containerApps@2025-01-01' = {
           }
         ]
       }
-      registries: [
+      registries: configureAcrRegistry ? [
         {
           server: acrLoginServer
           identity: 'system'
         }
-      ]
+      ] : []
       activeRevisionsMode: 'Single'
     }
     template: {
