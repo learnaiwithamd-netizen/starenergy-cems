@@ -96,6 +96,9 @@ param githubRepo string = 'cems'
 @description('Provision the GitHub OIDC federated identity. Set to false for the very first deploy (chicken-and-egg).')
 param enableGithubFederation bool = true
 
+@description('Resource id of an existing Container Apps Environment to reuse (avoids the 1-per-region quota limit). Leave empty to create a new one.')
+param existingCaeResourceId string = ''
+
 var tags = union(
   {
     app: 'cems'
@@ -284,8 +287,9 @@ module containerApps 'modules/containerapps.bicep' = {
     env: env
     location: location
     tags: tags
-    containersSubnetId: network.outputs.containersSubnetId
-    logAnalyticsWorkspaceId: appInsights.outputs.logAnalyticsWorkspaceId
+    containersSubnetId: empty(existingCaeResourceId) ? network.outputs.containersSubnetId : ''
+    logAnalyticsWorkspaceId: empty(existingCaeResourceId) ? appInsights.outputs.logAnalyticsWorkspaceId : ''
+    existingCaeResourceId: existingCaeResourceId
     acrLoginServer: acr.outputs.acrLoginServer
     imageTag: calcServiceImageTag
     cpu: containerAppsConfig.cpu

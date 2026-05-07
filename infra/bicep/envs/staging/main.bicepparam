@@ -54,6 +54,10 @@ param keyVaultSoftDeleteRetentionDays = 30
 
 param swaCorsOrigins = []
 
+// Reuse the dev Container Apps Environment — subscription is limited to 1 per region.
+// Replace with a dedicated staging CAE once the quota is raised or a second subscription is available.
+param existingCaeResourceId = '/subscriptions/7a1afd60-8ba6-49af-bec3-519cae2ee295/resourceGroups/cems-dev-rg/providers/Microsoft.App/managedEnvironments/cems-dev-cae'
+
 param extraTags = {
   tier: 'staging'
 }

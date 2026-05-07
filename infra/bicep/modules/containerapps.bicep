@@ -11,11 +11,14 @@ param location string
 @description('Resource tags')
 param tags object
 
-@description('Subnet id for Container Apps environment')
-param containersSubnetId string
+@description('Subnet id for Container Apps environment (only used when creating a new environment)')
+param containersSubnetId string = ''
 
-@description('Log Analytics workspace id for diagnostics')
-param logAnalyticsWorkspaceId string
+@description('Log Analytics workspace id for diagnostics (only used when creating a new environment)')
+param logAnalyticsWorkspaceId string = ''
+
+@description('Resource id of an existing Container Apps environment to reuse. When set, no new environment is created.')
+param existingCaeResourceId string = ''
 
 @description('ACR login server (e.g. cemsacrdev.azurecr.io) — set by main.bicep from acr.bicep output')
 param acrLoginServer string
@@ -44,12 +47,13 @@ param maxReplicas int = 1
 
 var caeName = 'cems-${env}-cae'
 var calcAppName = 'cems-${env}-calc'
+var createNewEnv = empty(existingCaeResourceId)
 
-resource logWorkspace 'Microsoft.OperationalInsights/workspaces@2025-02-01' existing = {
+resource logWorkspace 'Microsoft.OperationalInsights/workspaces@2025-02-01' existing = if (createNewEnv) {
   name: last(split(logAnalyticsWorkspaceId, '/'))
 }
 
-resource cae 'Microsoft.App/managedEnvironments@2025-01-01' = {
+resource cae 'Microsoft.App/managedEnvironments@2025-01-01' = if (createNewEnv) {
   name: caeName
   location: location
   tags: tags
@@ -75,6 +79,8 @@ resource cae 'Microsoft.App/managedEnvironments@2025-01-01' = {
   }
 }
 
+var resolvedCaeId = createNewEnv ? cae.id : existingCaeResourceId
+
 resource calcApp 'Microsoft.App/containerApps@2025-01-01' = {
   name: calcAppName
   location: location
@@ -83,7 +89,7 @@ resource calcApp 'Microsoft.App/containerApps@2025-01-01' = {
     type: 'SystemAssigned'
   }
   properties: {
-    managedEnvironmentId: cae.id
+    managedEnvironmentId: resolvedCaeId
     workloadProfileName: 'Consumption'
     configuration: {
       ingress: {
@@ -149,4 +155,4 @@ resource calcApp 'Microsoft.App/containerApps@2025-01-01' = {
 output calcServiceFqdn string = calcApp.properties.configuration.ingress.fqdn
 output calcManagedIdentityPrincipalId string = calcApp.identity.principalId
 output calcAppName string = calcApp.name
-output caeName string = cae.name
+output caeName string = createNewEnv ? cae.name : last(split(existingCaeResourceId, '/'))
