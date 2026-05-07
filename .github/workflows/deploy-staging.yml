@@ -103,6 +103,17 @@ jobs:
           echo "::add-mask::${DB_URL}"
           echo "db_url=${DB_URL}" >>"$GITHUB_OUTPUT"
 
+      # Resolve any migration that previously failed (e.g. due to GO syntax)
+      # so migrate deploy can proceed. Safe to run on every push: exits 0
+      # if the named migration is not in a failed state.
+      - name: Resolve previously-failed migration (one-time recovery)
+        env:
+          DATABASE_URL: ${{ steps.db-secret.outputs.db_url }}
+        run: |
+          pnpm --filter @cems/db exec prisma migrate resolve \
+            --rolled-back "20260507000000_add_user_status_and_password_set_tokens" \
+            2>/dev/null || true
+
       # `prisma migrate deploy` is idempotent — running it on every push is
       # cheap (no-ops when no new migrations) and it's the only way to
       # guarantee schema/code parity across squash, rebase, and merge-commit
