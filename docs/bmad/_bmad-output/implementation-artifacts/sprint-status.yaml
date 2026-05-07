@@ -59,8 +59,8 @@ development_status:
   # ─────────────────────────────────────────────
   # Epic 1: Authentication & User Management
   # ─────────────────────────────────────────────
-  epic-1: backlog
-  1-1-email-password-login-and-jwt-issuance: backlog
+  epic-1: in-progress
+  1-1-email-password-login-and-jwt-issuance: ready-for-dev
   1-2-role-based-surface-access-and-route-guards: backlog
   1-3-admin-user-management-auditor-accounts: backlog
   1-4-admin-user-management-client-accounts-and-site-assignment: backlog
