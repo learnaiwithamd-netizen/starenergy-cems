@@ -199,7 +199,7 @@ function CreateUserForm({
     e.preventDefault()
     setError(null)
     try {
-      const assignedStoreIds = role === 'CLIENT' ? parseStoreIds(storeIdsRaw) : []
+      const assignedStoreIds = parseStoreIds(storeIdsRaw)
       const userRole = role === 'AUDITOR' ? UserRole.AUDITOR : UserRole.CLIENT
       await createMut.mutateAsync({ name, email, role: userRole, assignedStoreIds })
       setName('')
@@ -242,24 +242,25 @@ function CreateUserForm({
           className="mt-1 w-full"
         />
       </div>
-      {role === 'CLIENT' && (
-        <div>
-          <label htmlFor="new-user-stores" className="block text-sm font-medium">
-            Assigned stores
-          </label>
-          <Input
-            id="new-user-stores"
-            value={storeIdsRaw}
-            onChange={(e) => setStoreIdsRaw(e.target.value)}
-            placeholder="store-001, store-002"
-            aria-describedby="new-user-stores-help"
-            className="mt-1 w-full"
-          />
-          <p id="new-user-stores-help" className="mt-1 text-xs text-muted">
-            Store IDs (comma-separated). Future stories will replace this with a store picker.
-          </p>
-        </div>
-      )}
+      <div>
+        <label htmlFor="new-user-stores" className="block text-sm font-medium">
+          Assigned stores
+        </label>
+        <Input
+          id="new-user-stores"
+          value={storeIdsRaw}
+          onChange={(e) => setStoreIdsRaw(e.target.value)}
+          placeholder="store-id-001, store-id-002"
+          aria-describedby="new-user-stores-help"
+          className="mt-1 w-full"
+        />
+        <p id="new-user-stores-help" className="mt-1 text-xs text-muted">
+          {role === 'CLIENT'
+            ? 'Store IDs (comma-separated). Gates which audits this client can read.'
+            : 'Store IDs (comma-separated). UX filter for the store-selector — does not gate data access.'}
+          {' '}Future stories will replace this with a store picker.
+        </p>
+      </div>
       <div role="alert" aria-live="assertive" className="min-h-[1.25rem] text-sm text-danger">
         {error}
       </div>

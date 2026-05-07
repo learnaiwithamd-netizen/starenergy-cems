@@ -76,24 +76,21 @@ export const adminUserSchema = z.object({
 })
 export type AdminUser = z.infer<typeof adminUserSchema>
 
-export const createUserRequestSchema = z
-  .object({
-    email: z.string().trim().toLowerCase().email().max(254),
-    name: z.string().trim().min(1).max(128),
-    role: z.enum([UserRole.AUDITOR, UserRole.CLIENT]),
-    assignedStoreIds: z
-      .array(z.string().min(1))
-      .max(ASSIGNED_STORE_IDS_MAX)
-      .default([]),
-  })
-  // Cross-field guard: AUDITOR rows are not store-scoped (the SQL filter
-  // only consults assigned_store_ids when SESSION_CONTEXT('user_role') =
-  // 'CLIENT'). Reject non-empty arrays for AUDITOR creates so the form is
-  // protected against admin-error.
-  .refine(
-    (v) => v.role !== UserRole.AUDITOR || v.assignedStoreIds.length === 0,
-    { message: 'AUDITOR users must have empty assignedStoreIds', path: ['assignedStoreIds'] },
-  )
+// `assignedStoreIds` carries dual semantics by role (Story 2.1):
+//   AUDITOR → UX scoping (filters /api/v1/stores?assignedToUser=true).
+//   CLIENT  → security gating (RLS predicate uses it at the DB layer).
+//   ADMIN   → irrelevant (admin sees all via the OR-ADMIN bypass).
+// No cross-field refine — the column is metadata for AUDITOR rows that
+// the SQL filter never consults. Documented in CLAUDE.md.
+export const createUserRequestSchema = z.object({
+  email: z.string().trim().toLowerCase().email().max(254),
+  name: z.string().trim().min(1).max(128),
+  role: z.enum([UserRole.AUDITOR, UserRole.CLIENT]),
+  assignedStoreIds: z
+    .array(z.string().min(1))
+    .max(ASSIGNED_STORE_IDS_MAX)
+    .default([]),
+})
 export type CreateUserRequest = z.infer<typeof createUserRequestSchema>
 
 export const updateUserRequestSchema = z

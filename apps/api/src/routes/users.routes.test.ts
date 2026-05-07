@@ -194,7 +194,14 @@ describe('users.routes', () => {
       await app.close()
     })
 
-    it('422 when AUDITOR is created with non-empty assignedStoreIds (refine)', async () => {
+    it('201 creates an AUDITOR with non-empty assignedStoreIds (UX-scoped per Story 2.1)', async () => {
+      // Story 2.1 dropped the 1.4 cross-field refine. AUDITOR rows now
+      // carry assignedStoreIds for UX scoping (filters the store-selector
+      // list); the SQL audits filter still ignores them for non-CLIENT roles.
+      userServiceMock.createUser.mockResolvedValue({
+        ...sampleAdminUser,
+        assignedStoreIds: ['store-001', 'store-002'],
+      })
       const app = await buildTestApp()
       const token = await makeToken(UserRole.ADMIN)
       const res = await app.inject({
@@ -202,13 +209,16 @@ describe('users.routes', () => {
         url: '/api/v1/users',
         headers: { authorization: `Bearer ${token}` },
         payload: {
-          email: 'a@b.c',
+          email: 'auditor@cems.local',
           name: 'Aud',
           role: 'AUDITOR',
-          assignedStoreIds: ['store-001'],
+          assignedStoreIds: ['store-001', 'store-002'],
         },
       })
-      expect(res.statusCode).toBe(422)
+      expect(res.statusCode).toBe(201)
+      const body = JSON.parse(res.body)
+      expect(body.role).toBe('AUDITOR')
+      expect(body.assignedStoreIds).toEqual(['store-001', 'store-002'])
       await app.close()
     })
 

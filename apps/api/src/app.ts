@@ -15,6 +15,7 @@ import { registerAuthRoutes } from './routes/auth.routes.js'
 import { registerDbHealthRoute } from './routes/db-health.js'
 import { registerMeRoutes } from './routes/me.routes.js'
 import { registerPasswordSetRoutes } from './routes/password-set.routes.js'
+import { registerStoresRoutes } from './routes/stores.routes.js'
 import { registerUsersRoutes } from './routes/users.routes.js'
 
 const DEFAULT_DEV_ORIGINS = [
@@ -123,6 +124,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   registerUsersRoutes(app)
   registerPasswordSetRoutes(app)
   registerAuditsRoutes(app)
+  registerStoresRoutes(app)
 
   return app
 }

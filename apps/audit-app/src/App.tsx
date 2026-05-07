@@ -1,12 +1,10 @@
 import { Route, Routes } from 'react-router-dom'
-import { Button } from '@cems/ui'
-import { AuditStatus, SECTION_LOCK_TTL_MS } from '@cems/types'
 import { LoginPage } from './features/auth/LoginPage'
 import { RequireAuth } from './features/auth/RequireAuth'
 import { SetPasswordPage } from './features/auth/SetPasswordPage'
 import { useAuthBootstrap } from './features/auth/useAuthBootstrap'
-import { useAuthStore } from './features/auth/auth-store'
-import { useLogout } from './features/auth/useLogout'
+import { StoreSelectorPage } from './features/store-selector/StoreSelectorPage'
+import { AuditNewPage } from './features/audit/AuditNewPage'
 
 const SURFACE = 'audit' as const
 
@@ -34,33 +32,23 @@ export default function App() {
           <Route path="/login" element={<LoginPage surface={SURFACE} title="Site Audit — Sign in" />} />
           <Route path="/set-password" element={<SetPasswordPage />} />
           <Route
+            path="/audit/new"
+            element={
+              <RequireAuth surface={SURFACE}>
+                <AuditNewPage />
+              </RequireAuth>
+            }
+          />
+          <Route
             path="/*"
             element={
               <RequireAuth surface={SURFACE}>
-                <Home />
+                <StoreSelectorPage />
               </RequireAuth>
             }
           />
         </Routes>
       </main>
-    </>
-  )
-}
-
-function Home() {
-  const user = useAuthStore((s) => s.user)
-  const logout = useLogout()
-  return (
-    <>
-      <h1 className="text-2xl font-semibold">Audit App</h1>
-      <p className="mt-2 text-sm text-gray-600">
-        Status demo: {AuditStatus.DRAFT} · Lock TTL: {SECTION_LOCK_TTL_MS}ms
-      </p>
-      {user && <p className="mt-2 text-sm">Signed in as {user.name} ({user.email})</p>}
-      <Button className="mt-4">Get started</Button>
-      <Button variant="ghost" className="ml-2 mt-4" onClick={() => void logout()}>
-        Sign out
-      </Button>
     </>
   )
 }

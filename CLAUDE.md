@@ -143,15 +143,25 @@ CLIENT_PORTAL_URL=http://localhost:5175
 ## Admin User Management (Story 1.3)
 
 - Admins can create, edit, deactivate, and list **auditor + client accounts** via:
-  - `POST /api/v1/users` (role: AUDITOR or CLIENT; CLIENT bodies include `assignedStoreIds: string[]`)
+  - `POST /api/v1/users` (role: AUDITOR or CLIENT; both can carry `assignedStoreIds: string[]` per Story 2.1's dual-semantics decision)
   - `GET /api/v1/users?role=AUDITOR|CLIENT&status=…` (RLS scopes to admin's tenant)
   - `PATCH /api/v1/users/:id` (name / email / status / assignedStoreIds). Setting `status: INACTIVE` atomically deletes every `user_sessions` row for the user.
 - Admin UI lives at `apps/admin-app` `/users` (under `RequireAuth`) with role tabs (Auditors/Clients).
+- **`User.assignedStoreIds` dual semantics (Story 2.1):** AUDITOR rows use the column for **UX scoping** (filters the `/api/v1/stores?assignedToUser=true` list). CLIENT rows use it for **security gating** (Azure SQL RLS predicate `fn_audits_filter` consults it only for CLIENT). ADMIN ignores it (sees all via OR-ADMIN). Same column, role-dispatched meaning. The 1.4 cross-field refine that rejected non-empty AUDITOR storeIds was dropped in 2.1.
 - Welcome-email link is **role-aware** (Story 1.4): AUDITOR → `${AUDIT_APP_URL}/set-password?token=…`, CLIENT → `${CLIENT_PORTAL_URL}/set-password?token=…`. The user sets their initial password via `POST /api/v1/auth/password-set`. Token TTL: 24h, one-shot.
 - INACTIVE users: `login` returns the same generic 401 as wrong-password (with timing parity via dummy argon2 verify); `/me` returns 401 so the SPA clears its session within one request.
 - **`assignedStoreIds` JWT staleness (Story 1.4)**: the JWT carries the assignment list at issue-time. Updates take effect on the user's next API call AT MOST one access-token TTL (4h) later. `/me` returns the LIVE DB value (not the JWT claim) so SPAs can detect drift and trigger a silent refresh.
 - `GET /api/v1/audits` is a **stub** added in Story 1.4 to validate the RLS audits filter end-to-end. Epic 2 / Story 7.1 ship the full feature. Response shape (`{ audits: AuditListItem[], total }`) is forward-compatible.
 - Email job is **stub-only** until Story 5.5 — `cems-email-notification-low` is enqueued with `templateId: 'auditor-welcome'` or `'client-welcome'`, but no actual Resend send happens yet.
+
+## Store Reference Data (Story 2.1)
+
+- `GET /api/v1/stores?assignedToUser=true|false&search=…` — auth required (any role); RLS scopes to tenant. `assignedToUser=true` filters by `rlsContext.assignedStoreIds` for AUDITOR + CLIENT; ADMIN ignores it.
+- `search` query is currently a no-op at the API layer; the SPA filters client-side. Future server-side opt-in is forward-compatible (the schema already accepts it).
+- Response: `{ stores: StoreSummary[], total }` capped at 200 rows. Pagination ships with the admin queue work.
+- audit-app `/` route renders `StoreSelectorPage` (replaces the placeholder Home). Skeleton loading via `@cems/ui` Skeleton, empty state ("No stores assigned — contact your administrator"), client-side debounced search, tap-to-navigate to `/audit/new?storeNumber=…` (placeholder until Story 2.2).
+- Seed script (`pnpm --filter @cems/db db:seed:test-users`) inserts 5 sample stores (`STORE-001` to `STORE-005`) and assigns the first 2 to the test auditor + test client.
+- No Redis caching at the list endpoint — the architecture's `store_ref:{storeNumber}` 1h cache applies only to the GET-by-storeNumber endpoint (Story 2.2).
 
 ## Auth Flow (Story 1.1 + 1.2)
 
@@ -159,4 +169,37 @@ CLIENT_PORTAL_URL=http://localhost:5175
 - **Role guard**: per-route `requireRole([UserRole.ADMIN])` pre-handler; rejects mismatched callers with RFC 7807 403 `…/forbidden`.
 - **SPA storage**: access token in memory (Zustand), refresh token in `localStorage` under key `cems.refreshToken`. Each SPA's api-client retries 401-token-expired ONCE via `/auth/refresh`; concurrent 401s share a single in-flight refresh.
 - **Cross-surface redirect**: logging into the wrong SPA discards the just-issued tokens (calls `/auth/logout` + clears localStorage) and `window.location.assign`s to the correct surface's `/login`.
-- **Synthetic test route**: `GET /api/v1/_test/admin-only` exists when `NODE_ENV !== 'production'` for AC5 verification only — Story 1.3 will replace it with real ADMIN routes.
+- **Synthetic test route**: `GET /api/v1/_test/admin-only` exists when `NODE_ENV !== 'production'` for AC5 verification only — replaced by real ADMIN routes in Story 1.3.
+
+## Store Reference Data (Story 2.1)
+
+- `GET /api/v1/stores` — Returns `{ stores: StoreSummary[], total }` (capped at 200 rows; pagination deferred).
+  - Query params: `assignedToUser` (coerced boolean, default `false`), `search` (max 128 chars, **accepted but ignored at API level** — filtering is client-side by design).
+  - **ADMIN**: `assignedToUser` flag is always ignored; returns full tenant store list.
+  - **AUDITOR/CLIENT**: `assignedToUser=true` restricts to `rlsContext.assignedStoreIds`; empty assignment list short-circuits before the DB call (returns `[]` without a query).
+- `StoreSummary` shape: `{ id, storeNumber, storeName: string|null, banner: string|null, region: string|null }`.
+- audit-app **Store Selector** (`/` after auth): calls `GET /api/v1/stores?assignedToUser=true`, filters client-side (150 ms debounce, case-insensitive match on `storeNumber` or `storeName`), navigates to `/audit/new?storeNumber=…` on row select.
+- `/audit/new` is a **stub** — store auto-fill + DRAFT audit creation arrives in Story 2.2.
+
+## API Testing Pattern
+
+Every feature is tested at three isolated layers (mock the layer below, never the DB directly):
+
+1. **Route tests** (`.routes.test.ts`) — mock the service; verify HTTP status codes, query-param coercion, role guards.
+2. **Service tests** (`.service.test.ts`) — mock the repository; verify business-logic branches (e.g. ADMIN ignores `assignedToUser`, empty `ids` short-circuit).
+3. **Repo tests** (`.repo.test.ts`) — mock the Prisma transaction object; verify correct `where` clauses and early-return guards.
+
+Run a single test file: `pnpm --filter @cems/api exec vitest run src/routes/stores.routes.test.ts`
+
+## SPA Feature Structure
+
+Each feature lives under `apps/<spa>/src/features/<feature>/` and co-locates its React Query hooks:
+
+```
+features/store-selector/
+  StoreSelectorPage.tsx      # UI component
+  stores-api.ts              # useAssignedStores() hook — queryKey + apiFetch
+  StoreSelectorPage.test.tsx # Vitest + vitest-axe (loading / empty / list / search / nav)
+```
+
+Hooks follow the pattern: `useQuery<ResponseType>({ queryKey: [...KEY, params], queryFn: () => apiFetch('/api/v1/...'), staleTime })`. Store list uses `staleTime: 5 * 60 * 1000`; adjust per data volatility.
