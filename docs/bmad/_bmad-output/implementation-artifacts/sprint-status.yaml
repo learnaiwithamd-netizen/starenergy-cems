@@ -69,8 +69,8 @@ development_status:
   # ─────────────────────────────────────────────
   # Epic 2: Audit App — Store Selection & Session Foundation
   # ─────────────────────────────────────────────
-  epic-2: backlog
-  2-1-store-reference-data-api-and-store-selector-screen: backlog
+  epic-2: in-progress
+  2-1-store-reference-data-api-and-store-selector-screen: ready-for-dev
   2-2-store-auto-fill-and-new-audit-draft-creation: backlog
   2-3-auto-save-and-session-resume: backlog
   2-4-section-overview-and-navigation-shell: backlog
