@@ -84,6 +84,10 @@ param enableKeyVaultPurgeProtection bool = false
 @description('Key Vault soft-delete retention days')
 param keyVaultSoftDeleteRetentionDays int = 30
 
+@description('Key Vault network default action — Allow for dev/staging (CI/CD needs access), Deny for prod')
+@allowed(['Allow', 'Deny'])
+param kvNetworkDefaultAction string = (env == 'dev') ? 'Allow' : 'Deny'
+
 @description('Additional resource tags on top of the defaults')
 param extraTags object = {}
 
@@ -144,6 +148,7 @@ module keyVault 'modules/keyvault.bicep' = {
     tags: tags
     tenantId: tenantId
     enablePurgeProtection: enableKeyVaultPurgeProtection
+    networkDefaultAction: kvNetworkDefaultAction
     softDeleteRetentionInDays: keyVaultSoftDeleteRetentionDays
   }
 }

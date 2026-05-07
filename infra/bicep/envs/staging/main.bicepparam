@@ -62,6 +62,10 @@ param existingCaeResourceId = '/subscriptions/7a1afd60-8ba6-49af-bec3-519cae2ee2
 // CI (deploy-staging.yml) updates this to the real ACR image on every push to main.
 param calcServiceImageOverride = 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
 
+// Allow public KV access so GitHub Actions runners can read secrets during CI/CD.
+// Prod should use private endpoints; staging uses public access for simplicity.
+param kvNetworkDefaultAction = 'Allow'
+
 param extraTags = {
   tier: 'staging'
 }
