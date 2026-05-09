@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-20
-last_updated: 2026-05-08
+last_updated: 2026-05-09
 project: Star Energy CEMS
 project_key: NOKEY
 tracking_system: file-system
@@ -71,9 +71,9 @@ development_status:
   # ─────────────────────────────────────────────
   epic-2: in-progress
   2-1-store-reference-data-api-and-store-selector-screen: review
-  2-2-store-auto-fill-and-new-audit-draft-creation: backlog
-  2-3-auto-save-and-session-resume: backlog
-  2-4-section-overview-and-navigation-shell: backlog
+  2-2-store-auto-fill-and-new-audit-draft-creation: done
+  2-3-auto-save-and-session-resume: review
+  2-4-section-overview-and-navigation-shell: review
   epic-2-retrospective: optional
 
   # ─────────────────────────────────────────────

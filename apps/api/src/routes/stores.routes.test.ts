@@ -6,7 +6,7 @@ import { JWT_AUDIENCE, JWT_ISSUER, UserRole } from '@cems/types'
 
 const { fakeTx, serviceMock } = vi.hoisted(() => ({
   fakeTx: Symbol('fake-tx'),
-  serviceMock: { listStoresForCaller: vi.fn() },
+  serviceMock: { listStoresForCaller: vi.fn(), getStoreDetail: vi.fn() },
 }))
 vi.mock('../services/store.service.js', () => serviceMock)
 
@@ -132,6 +132,89 @@ describe('GET /api/v1/stores', () => {
   it('401 without an Authorization header', async () => {
     const app = await buildTestApp()
     const res = await app.inject({ method: 'GET', url: '/api/v1/stores' })
+    expect(res.statusCode).toBe(401)
+    await app.close()
+  })
+})
+
+const sampleDetail = {
+  id: 's-1',
+  storeNumber: 'STORE-001',
+  storeName: 'Sobeys A',
+  address: '123 Main St',
+  banner: 'Sobeys',
+  region: 'ON',
+  postalCode: 'M1A 1A1',
+  operatingHours: null,
+  serviceProviders: [],
+  storeManager: null,
+}
+
+describe('GET /api/v1/stores/:storeNumber', () => {
+  let originalSecret: string | undefined
+
+  beforeAll(() => {
+    originalSecret = process.env['JWT_SECRET']
+  })
+
+  beforeEach(() => {
+    process.env['JWT_SECRET'] = FAKE_JWT_SECRET
+    __resetJwtSecretCacheForTests()
+    vi.clearAllMocks()
+  })
+
+  afterEach(() => {
+    if (originalSecret === undefined) delete process.env['JWT_SECRET']
+    else process.env['JWT_SECRET'] = originalSecret
+    __resetJwtSecretCacheForTests()
+  })
+
+  it('200 returns store detail', async () => {
+    serviceMock.getStoreDetail.mockResolvedValue(sampleDetail)
+    const app = await buildTestApp()
+    const token = await makeToken(UserRole.AUDITOR)
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/stores/STORE-001',
+      headers: { authorization: `Bearer ${token}` },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(JSON.parse(res.body)).toEqual(sampleDetail)
+    expect(serviceMock.getStoreDetail.mock.calls[0]![0]).toBe('STORE-001')
+    await app.close()
+  })
+
+  it('404 when store not found', async () => {
+    serviceMock.getStoreDetail.mockResolvedValue(null)
+    const app = await buildTestApp()
+    const token = await makeToken(UserRole.AUDITOR)
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/stores/STORE-999',
+      headers: { authorization: `Bearer ${token}` },
+    })
+    expect(res.statusCode).toBe(404)
+    await app.close()
+  })
+
+  it('200 — every authenticated role can fetch store detail', async () => {
+    serviceMock.getStoreDetail.mockResolvedValue(sampleDetail)
+    const app = await buildTestApp()
+    for (const role of [UserRole.AUDITOR, UserRole.ADMIN, UserRole.CLIENT] as const) {
+      const token = await makeToken(role)
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/v1/stores/STORE-001',
+        headers: { authorization: `Bearer ${token}` },
+      })
+      expect(res.statusCode).toBe(200)
+    }
+    await app.close()
+  })
+
+  it('401 without an Authorization header', async () => {
+    const app = await buildTestApp()
+    const res = await app.inject({ method: 'GET', url: '/api/v1/stores/STORE-001' })
     expect(res.statusCode).toBe(401)
     await app.close()
   })

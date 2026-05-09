@@ -8,6 +8,26 @@ import { axe } from 'vitest-axe'
 const fetchMock = vi.fn()
 const navigateMock = vi.fn()
 
+/**
+ * Helper that routes fetch calls by URL — stores vs in-progress draft.
+ * Tests can override `draftsResponse` to surface the Resume CTA.
+ */
+function setupFetchMock(opts: {
+  storesBody?: unknown
+  storesStatus?: number
+  draftsBody?: unknown
+}): void {
+  const storesBody = opts.storesBody ?? { stores: [], total: 0 }
+  const draftsBody = opts.draftsBody ?? { audits: [], total: 0 }
+  fetchMock.mockImplementation((input: RequestInfo | URL) => {
+    const url = typeof input === 'string' ? input : input.toString()
+    if (url.includes('/api/v1/audits')) {
+      return Promise.resolve(jsonResponse(draftsBody))
+    }
+    return Promise.resolve(jsonResponse(storesBody, opts.storesStatus ?? 200))
+  })
+}
+
 beforeEach(() => {
   fetchMock.mockReset()
   navigateMock.mockReset()
@@ -15,6 +35,8 @@ beforeEach(() => {
 })
 afterEach(() => {
   vi.unstubAllGlobals()
+  // Clear TanStack Query online-manager pause state in case any test triggers it.
+  window.dispatchEvent(new Event('online'))
 })
 
 vi.mock('react-router-dom', async () => {
@@ -55,7 +77,7 @@ const sampleStores = [
 
 describe('StoreSelectorPage', () => {
   it('shows the empty-state message when no stores are assigned (AC3)', async () => {
-    fetchMock.mockResolvedValue(jsonResponse({ stores: [], total: 0 }))
+    setupFetchMock({ storesBody: { stores: [], total: 0 } })
     renderPage()
     await waitFor(() =>
       expect(
@@ -65,29 +87,30 @@ describe('StoreSelectorPage', () => {
   })
 
   it('shows skeleton placeholders while loading (AC2)', async () => {
-    let resolveFetch!: (r: Response) => void
-    fetchMock.mockReturnValue(
-      new Promise<Response>((resolve) => {
-        resolveFetch = resolve
-      }),
-    )
+    let resolveStores!: (r: Response) => void
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input.toString()
+      if (url.includes('/api/v1/audits')) {
+        return Promise.resolve(jsonResponse({ audits: [], total: 0 }))
+      }
+      return new Promise<Response>((resolve) => {
+        resolveStores = resolve
+      })
+    })
     const { container } = renderPage()
-    // Skeleton list is aria-hidden; assert via DOM query.
     await waitFor(() =>
       expect(container.querySelector('ul[aria-hidden="true"]')).toBeInTheDocument(),
     )
-    // Resolve to settle the promise.
-    resolveFetch(jsonResponse({ stores: [], total: 0 }))
+    resolveStores(jsonResponse({ stores: [], total: 0 }))
   })
 
   it('renders the populated list and clicking a row navigates to /audit/new (AC1, AC5)', async () => {
-    fetchMock.mockResolvedValue(jsonResponse({ stores: sampleStores, total: 3 }))
+    setupFetchMock({ storesBody: { stores: sampleStores, total: 3 } })
     const user = userEvent.setup()
     const { container } = renderPage()
 
     await waitFor(() => expect(screen.getByText(/STORE-001/)).toBeInTheDocument())
 
-    // axe pass.
     const results = await axe(container, {
       rules: { 'color-contrast': { enabled: false } },
     })
@@ -98,7 +121,7 @@ describe('StoreSelectorPage', () => {
   })
 
   it('search filters by store number (AC4)', async () => {
-    fetchMock.mockResolvedValue(jsonResponse({ stores: sampleStores, total: 3 }))
+    setupFetchMock({ storesBody: { stores: sampleStores, total: 3 } })
     const user = userEvent.setup()
     renderPage()
 
@@ -113,7 +136,7 @@ describe('StoreSelectorPage', () => {
   })
 
   it('search filters by store name (AC4, case-insensitive)', async () => {
-    fetchMock.mockResolvedValue(jsonResponse({ stores: sampleStores, total: 3 }))
+    setupFetchMock({ storesBody: { stores: sampleStores, total: 3 } })
     const user = userEvent.setup()
     renderPage()
 
@@ -125,5 +148,38 @@ describe('StoreSelectorPage', () => {
       expect(screen.queryByText(/STORE-001/)).not.toBeInTheDocument()
       expect(screen.getByText(/STORE-002/)).toBeInTheDocument()
     })
+  })
+
+  it('renders Resume CTA when an in-progress DRAFT exists (Story 2.3 AC5)', async () => {
+    setupFetchMock({
+      storesBody: { stores: sampleStores, total: 3 },
+      draftsBody: {
+        audits: [
+          {
+            id: 'audit-xyz',
+            storeId: 'a',
+            status: 'DRAFT',
+            createdAt: '2026-05-08T10:00:00.000Z',
+            updatedAt: '2026-05-09T10:00:00.000Z',
+          },
+        ],
+        total: 1,
+      },
+    })
+    const user = userEvent.setup()
+    renderPage()
+    await waitFor(() =>
+      expect(screen.getByTestId('resume-audit-callout')).toBeInTheDocument(),
+    )
+    expect(screen.getByText(/Resume audit at STORE-001/i)).toBeInTheDocument()
+    await user.click(screen.getByTestId('resume-audit-button'))
+    expect(navigateMock).toHaveBeenCalledWith('/audit/audit-xyz')
+  })
+
+  it('does NOT render Resume CTA when no in-progress draft exists', async () => {
+    setupFetchMock({ storesBody: { stores: sampleStores, total: 3 } })
+    renderPage()
+    await waitFor(() => expect(screen.getByText(/STORE-001/)).toBeInTheDocument())
+    expect(screen.queryByTestId('resume-audit-callout')).not.toBeInTheDocument()
   })
 })

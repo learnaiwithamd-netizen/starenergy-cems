@@ -8,6 +8,7 @@ import {
   TokenExpiredError,
   UserEmailConflictError,
 } from '../lib/auth-errors.js'
+import { AuditNotEditableError, AuditNotFoundError } from '../lib/audit-errors.js'
 
 const PROBLEM_BASE = 'https://cems.starenergy.ca/errors'
 
@@ -122,6 +123,37 @@ export function buildErrorHandler() {
         'role guard rejected request',
       )
       reply.code(403).type('application/problem+json').send(problem)
+      return
+    }
+
+    // Audit not editable (wrong owner / non-DRAFT / not found) → 404 with
+    // a uniform `audit-not-editable` slug. We do NOT distinguish reasons
+    // — leaking would let a caller probe for existence + ownership.
+    if (error instanceof AuditNotEditableError) {
+      const problem = buildProblemDetail(
+        404,
+        error.message,
+        instance,
+        undefined,
+        'audit-not-editable',
+      )
+      request.log.warn(
+        {
+          request_id: request.id,
+          tenant_id: request.rlsContext?.tenantId ?? null,
+          user_id: request.rlsContext?.userId ?? null,
+        },
+        'audit not editable',
+      )
+      reply.code(404).type('application/problem+json').send(problem)
+      return
+    }
+
+    // Audit read returned null (RLS-filtered or missing) → 404 with the
+    // generic `audit-not-found` slug.
+    if (error instanceof AuditNotFoundError) {
+      const problem = buildProblemDetail(404, error.message, instance, undefined, 'audit-not-found')
+      reply.code(404).type('application/problem+json').send(problem)
       return
     }
 

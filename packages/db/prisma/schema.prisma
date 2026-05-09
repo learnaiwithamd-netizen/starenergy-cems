@@ -98,16 +98,19 @@ model UserSession {
 // ─────────────────────────────────────────────
 
 model StoreRef {
-  id          String   @id @default(cuid())
-  tenantId    String   @map("tenant_id")
-  storeNumber String   @map("store_number")
-  storeName   String?  @map("store_name")
-  address     String?
-  banner      String?
-  region      String?
-  postalCode  String?  @map("postal_code")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id               String   @id @default(cuid())
+  tenantId         String   @map("tenant_id")
+  storeNumber      String   @map("store_number")
+  storeName        String?  @map("store_name")
+  address          String?
+  banner           String?
+  region           String?
+  postalCode       String?  @map("postal_code")
+  operatingHours   String?  @map("operating_hours") @db.NVarChar(Max)
+  serviceProviders String?  @map("service_providers") @db.NVarChar(Max)
+  storeManager     String?  @map("store_manager")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
 
   audits Audit[]
 

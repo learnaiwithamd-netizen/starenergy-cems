@@ -5,6 +5,8 @@ import { SetPasswordPage } from './features/auth/SetPasswordPage'
 import { useAuthBootstrap } from './features/auth/useAuthBootstrap'
 import { StoreSelectorPage } from './features/store-selector/StoreSelectorPage'
 import { AuditNewPage } from './features/audit/AuditNewPage'
+import { SectionOverviewPage } from './features/audit/SectionOverviewPage'
+import { SectionEditPage } from './features/audit/SectionEditPage'
 
 const SURFACE = 'audit' as const
 
@@ -36,6 +38,22 @@ export default function App() {
             element={
               <RequireAuth surface={SURFACE}>
                 <AuditNewPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/audit/:auditId"
+            element={
+              <RequireAuth surface={SURFACE}>
+                <SectionOverviewPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/audit/:auditId/section/:sectionId"
+            element={
+              <RequireAuth surface={SURFACE}>
+                <SectionEditPage />
               </RequireAuth>
             }
           />

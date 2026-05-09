@@ -1,10 +1,5 @@
 import { z } from 'zod'
 
-/**
- * Minimum store-summary fields the audit-app's StoreSelectorPage needs
- * to render a row. Story 2.2 adds a per-store endpoint with the full
- * reference data (address, manager, service providers, operating hours).
- */
 export const storeSummarySchema = z.object({
   id: z.string().min(1),
   storeNumber: z.string().min(1),
@@ -30,3 +25,19 @@ export const listStoresQuerySchema = z.object({
   search: z.string().max(128).optional(),
 })
 export type ListStoresQuery = z.infer<typeof listStoresQuerySchema>
+
+// ─── Story 2.2 — full store detail returned by GET /api/v1/stores/:storeNumber ─
+
+export const storeDetailSchema = z.object({
+  id: z.string().min(1),
+  storeNumber: z.string().min(1),
+  storeName: z.string().nullable(),
+  address: z.string().nullable(),
+  banner: z.string().nullable(),
+  region: z.string().nullable(),
+  postalCode: z.string().nullable(),
+  operatingHours: z.string().nullable(),
+  serviceProviders: z.array(z.string()),
+  storeManager: z.string().nullable(),
+})
+export type StoreDetail = z.infer<typeof storeDetailSchema>

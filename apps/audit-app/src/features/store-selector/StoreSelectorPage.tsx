@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState, type JSX } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, Input, Skeleton } from '@cems/ui'
-import type { StoreSummary } from '@cems/types'
+import type { AuditListItem, StoreSummary } from '@cems/types'
 import { useAssignedStores } from './stores-api'
+import { useInProgressDraft } from '../audit/audit-api'
 import { useAuthStore } from '../auth/auth-store'
 import { useLogout } from '../auth/useLogout'
 
@@ -19,6 +20,7 @@ function useDebouncedValue<T>(value: T, delay: number): T {
 
 export function StoreSelectorPage(): JSX.Element {
   const storesQ = useAssignedStores()
+  const draftQ = useInProgressDraft()
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebouncedValue(search, SEARCH_DEBOUNCE_MS)
   const navigate = useNavigate()
@@ -53,6 +55,14 @@ export function StoreSelectorPage(): JSX.Element {
           </Button>
         </div>
       </header>
+
+      {draftQ.data && (
+        <ResumeAuditCallout
+          audit={draftQ.data}
+          stores={storesQ.data?.stores ?? []}
+          onResume={() => navigate(`/audit/${draftQ.data!.id}`)}
+        />
+      )}
 
       <div className="mt-4">
         <label htmlFor="store-search" className="sr-only">
@@ -111,6 +121,51 @@ export function StoreSelectorPage(): JSX.Element {
       </div>
     </section>
   )
+}
+
+function ResumeAuditCallout({
+  audit,
+  stores,
+  onResume,
+}: {
+  audit: AuditListItem
+  stores: readonly StoreSummary[]
+  onResume: () => void
+}): JSX.Element {
+  const matchingStore = stores.find((s) => s.id === audit.storeId)
+  const storeLabel = matchingStore?.storeNumber ?? '(your last store)'
+  return (
+    <div
+      role="region"
+      aria-label="Resume in-progress audit"
+      className="mt-4 rounded border border-primary bg-primary/5 px-4 py-3"
+      data-testid="resume-audit-callout"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="font-medium">Resume audit at {storeLabel}</p>
+          <p className="text-xs text-muted">
+            Last saved {formatRelative(audit.updatedAt)}
+          </p>
+        </div>
+        <Button onClick={onResume} data-testid="resume-audit-button">
+          Resume
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function formatRelative(iso: string): string {
+  const then = new Date(iso).getTime()
+  const diffMs = Math.max(0, Date.now() - then)
+  const diffMin = Math.floor(diffMs / 60_000)
+  if (diffMin < 1) return 'just now'
+  if (diffMin < 60) return `${diffMin}m ago`
+  const diffHr = Math.floor(diffMin / 60)
+  if (diffHr < 24) return `${diffHr}h ago`
+  const diffDay = Math.floor(diffHr / 24)
+  return `${diffDay}d ago`
 }
 
 function StoreRow({

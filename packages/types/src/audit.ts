@@ -49,3 +49,79 @@ export const listAuditsResponseSchema = z.object({
   total: z.number().int().min(0),
 })
 export type ListAuditsResponse = z.infer<typeof listAuditsResponseSchema>
+
+// ─── Story 2.2 — DRAFT audit creation ───────────────────────────────────
+
+export const createAuditBodySchema = z.object({
+  storeId: z.string().min(1),
+})
+export type CreateAuditBody = z.infer<typeof createAuditBodySchema>
+
+export const createAuditResponseSchema = z.object({
+  auditId: z.string().min(1),
+})
+export type CreateAuditResponse = z.infer<typeof createAuditResponseSchema>
+
+// ─── Story 2.3 — Auto-save & resume ─────────────────────────────────────
+
+export const SECTION_IDS = [
+  'general',
+  'refrigeration',
+  'hvac',
+  'lighting',
+  'building-envelope',
+] as const
+export type SectionId = (typeof SECTION_IDS)[number]
+export const sectionIdSchema = z.enum(SECTION_IDS)
+
+export const patchAuditSectionParamsSchema = z.object({
+  id: z.string().min(1),
+  sectionId: sectionIdSchema,
+})
+export type PatchAuditSectionParams = z.infer<typeof patchAuditSectionParamsSchema>
+
+export const patchAuditSectionBodySchema = z.object({
+  data: z.record(z.unknown()),
+})
+export type PatchAuditSectionBody = z.infer<typeof patchAuditSectionBodySchema>
+
+export const patchAuditSectionResponseSchema = z.object({
+  sectionId: sectionIdSchema,
+  savedAt: z.string(),
+})
+export type PatchAuditSectionResponse = z.infer<typeof patchAuditSectionResponseSchema>
+
+export const auditSectionStateSchema = z.object({
+  sectionId: sectionIdSchema,
+  data: z.record(z.unknown()),
+  completedAt: z.string().nullable(),
+  updatedAt: z.string(),
+})
+export type AuditSectionState = z.infer<typeof auditSectionStateSchema>
+
+export const auditDetailSchema = z.object({
+  id: z.string().min(1),
+  storeId: z.string().min(1),
+  status: z.nativeEnum(AuditStatus),
+  currentSectionId: sectionIdSchema.nullable(),
+  formVersion: z.string(),
+  compressorDbVersion: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  sections: z.array(auditSectionStateSchema),
+})
+export type AuditDetail = z.infer<typeof auditDetailSchema>
+
+/**
+ * Query schema for `GET /api/v1/audits`. Both filters are optional.
+ * `auditorId='me'` is the documented sentinel — the API resolves it to
+ * `rls.userId` server-side. AUDITOR callers MUST pass either `'me'` or
+ * their own user id (defense in depth — RLS does not auto-filter audits
+ * to the caller's authored set, only to the caller's tenant + assigned
+ * stores for CLIENT).
+ */
+export const listAuditsQuerySchema = z.object({
+  status: z.nativeEnum(AuditStatus).optional(),
+  auditorId: z.string().min(1).optional(),
+})
+export type ListAuditsQuery = z.infer<typeof listAuditsQuerySchema>

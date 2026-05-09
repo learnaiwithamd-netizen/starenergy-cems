@@ -1,4 +1,4 @@
-import type { StoreSummary } from '@cems/types'
+import type { StoreSummary, StoreDetail } from '@cems/types'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type PrismaLike = any
@@ -21,6 +21,19 @@ interface StoreRow {
   storeName: string | null
   banner: string | null
   region: string | null
+}
+
+interface StoreDetailRow {
+  id: string
+  storeNumber: string
+  storeName: string | null
+  address: string | null
+  banner: string | null
+  region: string | null
+  postalCode: string | null
+  operatingHours: string | null
+  serviceProviders: string | null
+  storeManager: string | null
 }
 
 /**
@@ -54,5 +67,54 @@ export async function listStores(
       region: r.region,
     })),
     total: rows.length,
+  }
+}
+
+/**
+ * Fetches full store detail by storeNumber within the RLS-scoped tenant.
+ * Returns null when no matching store exists in the tenant.
+ * `serviceProviders` is stored as a JSON string array — parsed on read.
+ */
+export async function getStoreByStoreNumber(
+  tx: PrismaLike,
+  storeNumber: string,
+): Promise<StoreDetail | null> {
+  const row: StoreDetailRow | null = await tx.storeRef.findFirst({
+    where: { storeNumber },
+    select: {
+      id: true,
+      storeNumber: true,
+      storeName: true,
+      address: true,
+      banner: true,
+      region: true,
+      postalCode: true,
+      operatingHours: true,
+      serviceProviders: true,
+      storeManager: true,
+    },
+  })
+  if (!row) return null
+  return {
+    id: row.id,
+    storeNumber: row.storeNumber,
+    storeName: row.storeName,
+    address: row.address,
+    banner: row.banner,
+    region: row.region,
+    postalCode: row.postalCode,
+    operatingHours: row.operatingHours,
+    serviceProviders: parseServiceProviders(row.serviceProviders),
+    storeManager: row.storeManager,
+  }
+}
+
+function parseServiceProviders(raw: string | null): string[] {
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    return Array.isArray(parsed) ? (parsed as string[]) : []
+  } catch {
+    return []
   }
 }
