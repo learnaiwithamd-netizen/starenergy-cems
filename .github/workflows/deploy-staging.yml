@@ -238,6 +238,9 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: Generate Prisma client
+        run: pnpm --filter @cems/db build
+
       - name: Build API
         run: pnpm --filter api build
 
