@@ -220,7 +220,10 @@ jobs:
           exit 1
 
   deploy-api:
-    name: Deploy API via slot swap
+    # Basic-tier App Service plan (B2) does not support deployment slots.
+    # Deploy directly to production. Upgrade to Standard (S1+) to re-enable
+    # the slot-swap zero-downtime pattern.
+    name: Deploy API (direct to production)
     needs: [migrate, deploy-calc]
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -258,59 +261,25 @@ jobs:
           tenant-id: ${{ env.AZURE_TENANT_ID }}
           subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Deploy zip to staging slot
+      - name: Deploy zip to production
         run: |
           az webapp deploy \
             --resource-group "${AZURE_RG}" \
             --name "${API_APP_NAME}" \
-            --slot staging \
             --src-path api.zip \
             --type zip
 
-      - name: Health check on staging slot
-        run: |
-          STAGING_URL="https://${API_APP_NAME}-staging.azurewebsites.net/api/v1/health"
-          for _ in $(seq 1 18); do
-            if curl -fsS "${STAGING_URL}" >/dev/null 2>&1; then
-              echo "Staging slot is healthy."
-              exit 0
-            fi
-            sleep 5
-          done
-          echo "::error::API staging slot did not return 200 within 90s. Aborting swap." >&2
-          exit 1
-
-      - name: Slot swap → production
-        run: |
-          az webapp deployment slot swap \
-            --resource-group "${AZURE_RG}" \
-            --name "${API_APP_NAME}" \
-            --slot staging \
-            --target-slot production
-
-      - name: Smoke-test live production slot
-        id: smoke
-        continue-on-error: true
+      - name: Smoke-test production slot
         run: |
           PROD_URL="https://${API_APP_NAME}.azurewebsites.net/api/v1/health"
-          for _ in $(seq 1 12); do
+          for _ in $(seq 1 24); do
             if curl -fsS "${PROD_URL}" >/dev/null 2>&1; then
-              echo "Live production slot is healthy."
+              echo "API production slot is healthy."
               exit 0
             fi
             sleep 5
           done
-          exit 1
-
-      - name: Roll back on failed smoke test
-        if: steps.smoke.outcome == 'failure'
-        run: |
-          echo "::warning::Live slot health check failed. Swapping back."
-          az webapp deployment slot swap \
-            --resource-group "${AZURE_RG}" \
-            --name "${API_APP_NAME}" \
-            --slot production \
-            --target-slot staging
+          echo "::error::API did not return 200 within 120s after deploy." >&2
           exit 1
 
   health-check:
