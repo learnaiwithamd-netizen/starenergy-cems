@@ -241,10 +241,12 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Generate Prisma client
+      - name: Build workspace packages
         env:
           DATABASE_URL: "sqlserver://placeholder"
-        run: pnpm --filter @cems/db build
+        run: |
+          pnpm --filter @cems/types build
+          pnpm --filter @cems/db build
 
       - name: Build API
         run: pnpm --filter api build

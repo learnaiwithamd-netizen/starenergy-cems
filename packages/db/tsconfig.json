@@ -2,7 +2,9 @@
   "extends": "@cems/config/typescript/server.json",
   "compilerOptions": {
     "rootDir": "src",
-    "outDir": "dist"
+    "outDir": "dist",
+    "declaration": true,
+    "declarationMap": true
   },
   "include": ["src"]
 }
