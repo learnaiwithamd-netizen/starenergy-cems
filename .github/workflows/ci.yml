@@ -44,7 +44,7 @@ jobs:
           cache: pnpm
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
@@ -128,7 +128,7 @@ jobs:
 
       - name: Setup Python
         if: steps.changed.outputs.changed == 'true'
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
