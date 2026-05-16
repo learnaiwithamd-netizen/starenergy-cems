@@ -252,25 +252,45 @@ jobs:
         run: pnpm --filter api build
 
       - name: Package API for deploy
+        env:
+          DATABASE_URL: "sqlserver://placeholder"
         run: |
-          # prisma generate writes the generated client to the pnpm store at
-          # node_modules/.pnpm/@prisma+client@.../node_modules/.prisma/client/
-          # which is a sibling (not a child) of @prisma/client in the store.
-          # zip -r enters @prisma/client/ via the symlink chain but never
-          # reaches .prisma/client/ because it's not under any traversed dir.
-          # Copy it to packages/db/node_modules/.prisma/client so the zip
-          # reaches it via: apps/api/node_modules/@cems/db → packages/db →
-          # node_modules/.prisma/client.
+          ARTIFACT=/tmp/api-artifact
+
+          # pnpm's default isolated linker places packages as symlinks into a
+          # virtual store. zip -r uses inode-based cycle detection: when two
+          # packages share a transitive dep (same real inode), zip stores the
+          # content only once — under the FIRST referencing path — and skips
+          # all subsequent paths. Those skipped packages produce "Cannot find
+          # module" at Node.js startup with zero log output.
+          #
+          # Hoisted linker creates a flat node_modules with real files (no
+          # symlinks), exactly like npm. All modules are accessible from any
+          # requiring package and zip works correctly.
+          echo "node-linker=hoisted" >> .npmrc
+
+          # Build a self-contained deployment artifact with prod-only deps.
+          # workspace:* references are resolved to real versions automatically.
+          pnpm deploy --filter api --prod "$ARTIFACT"
+
+          # dist/ is gitignored, so pnpm deploy excludes it; copy explicitly.
+          cp -r apps/api/dist "$ARTIFACT/dist"
+          cp -r packages/db/dist "$ARTIFACT/node_modules/@cems/db/dist"
+          cp -r packages/types/dist "$ARTIFACT/node_modules/@cems/types/dist"
+
+          # With hoisted layout @prisma/client lands at node_modules/@prisma/client.
+          # @prisma/client/default.js does require('.prisma/client/default'), which
+          # Node.js resolves by walking up to node_modules/.prisma/client/.
           PRISMA_GENERATED=$(find node_modules/.pnpm -path "*/.prisma/client" -type d 2>/dev/null | head -1)
           if [ -z "${PRISMA_GENERATED}" ]; then
             echo "::error::Generated .prisma/client not found in pnpm store — did prisma generate run?" >&2
             exit 1
           fi
-          echo "Copying generated Prisma client from: ${PRISMA_GENERATED}"
-          mkdir -p packages/db/node_modules/.prisma
-          cp -r "${PRISMA_GENERATED}" packages/db/node_modules/.prisma/client
-          cd apps/api
-          zip -r ../../api.zip dist node_modules package.json
+          mkdir -p "$ARTIFACT/node_modules/.prisma"
+          cp -r "${PRISMA_GENERATED}" "$ARTIFACT/node_modules/.prisma/client"
+
+          cd "$ARTIFACT"
+          zip -r "$GITHUB_WORKSPACE/api.zip" .
 
       - name: Azure login (OIDC)
         uses: azure/login@v2

@@ -1,6 +1,9 @@
 import { pino, type LoggerOptions } from 'pino'
 
-const isProduction = process.env['NODE_ENV'] === 'production'
+// Use JSON logging in all non-development environments (staging, production).
+// pino-pretty uses a worker thread; if the process crashes before the worker
+// flushes, all buffered log lines are lost. JSON pino writes synchronously.
+const isJsonEnv = process.env['NODE_ENV'] !== 'development'
 
 const baseOptions: LoggerOptions = {
   level: process.env['LOG_LEVEL'] ?? 'info',
@@ -28,7 +31,7 @@ const baseOptions: LoggerOptions = {
   },
 }
 
-export const logger = isProduction
+export const logger = isJsonEnv
   ? pino(baseOptions)
   : pino({
       ...baseOptions,
