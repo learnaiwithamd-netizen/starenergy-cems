@@ -8,7 +8,14 @@ import {
   TokenExpiredError,
   UserEmailConflictError,
 } from '../lib/auth-errors.js'
-import { AuditNotEditableError, AuditNotFoundError } from '../lib/audit-errors.js'
+import {
+  AuditNotEditableError,
+  AuditNotFoundError,
+  DraftAlreadyExistsError,
+  MachineRoomNotFoundError,
+  RackNotFoundError,
+  StoreNotAssignedError,
+} from '../lib/audit-errors.js'
 
 const PROBLEM_BASE = 'https://cems.starenergy.ca/errors'
 
@@ -153,6 +160,47 @@ export function buildErrorHandler() {
     // generic `audit-not-found` slug.
     if (error instanceof AuditNotFoundError) {
       const problem = buildProblemDetail(404, error.message, instance, undefined, 'audit-not-found')
+      reply.code(404).type('application/problem+json').send(problem)
+      return
+    }
+
+    // AUDITOR tried to operate on a store outside their assignment → 403.
+    if (error instanceof StoreNotAssignedError) {
+      const problem = buildProblemDetail(403, error.message, instance, undefined, 'store-not-assigned')
+      request.log.warn(
+        {
+          request_id: request.id,
+          tenant_id: request.rlsContext?.tenantId ?? null,
+          user_id: request.rlsContext?.userId ?? null,
+        },
+        'store not assigned to auditor',
+      )
+      reply.code(403).type('application/problem+json').send(problem)
+      return
+    }
+
+    // AUDITOR already has a DRAFT → 409, body carries existing draft ref so
+    // the SPA can deep-link to it (or message the user to contact admin).
+    if (error instanceof DraftAlreadyExistsError) {
+      const problem = {
+        ...buildProblemDetail(409, error.message, instance, undefined, 'draft-already-exists'),
+        existingAuditId: error.existingAuditId,
+        existingStoreId: error.existingStoreId,
+      }
+      reply.code(409).type('application/problem+json').send(problem)
+      return
+    }
+
+    // Machine room not found or deleted → 404.
+    if (error instanceof MachineRoomNotFoundError) {
+      const problem = buildProblemDetail(404, error.message, instance, undefined, 'machine-room-not-found')
+      reply.code(404).type('application/problem+json').send(problem)
+      return
+    }
+
+    // Rack not found or not accessible → 404.
+    if (error instanceof RackNotFoundError) {
+      const problem = buildProblemDetail(404, error.message, instance, undefined, 'rack-not-found')
       reply.code(404).type('application/problem+json').send(problem)
       return
     }

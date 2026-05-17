@@ -7,6 +7,11 @@ import { StoreSelectorPage } from './features/store-selector/StoreSelectorPage'
 import { AuditNewPage } from './features/audit/AuditNewPage'
 import { SectionOverviewPage } from './features/audit/SectionOverviewPage'
 import { SectionEditPage } from './features/audit/SectionEditPage'
+import { MachineRoomGeneralPage } from './features/audit/MachineRoomGeneralPage'
+import { MachineRoomVentilationPage } from './features/audit/MachineRoomVentilationPage'
+import { MachineRoomExhaustPage } from './features/audit/MachineRoomExhaustPage'
+import { RackListPage } from './features/audit/RackListPage'
+import { RackGeneralPage } from './features/audit/RackGeneralPage'
 
 const SURFACE = 'audit' as const
 
@@ -46,6 +51,55 @@ export default function App() {
             element={
               <RequireAuth surface={SURFACE}>
                 <SectionOverviewPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/audit/:auditId/section/refrigeration/ventilation"
+            element={
+              <RequireAuth surface={SURFACE}>
+                <MachineRoomVentilationPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/audit/:auditId/section/refrigeration/exhaust"
+            element={
+              <RequireAuth surface={SURFACE}>
+                <MachineRoomExhaustPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/audit/:auditId/section/refrigeration/racks"
+            element={
+              <RequireAuth surface={SURFACE}>
+                <RackListPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/audit/:auditId/section/refrigeration/rack/:rackId/general"
+            element={
+              <RequireAuth surface={SURFACE}>
+                <RackGeneralPage />
+              </RequireAuth>
+            }
+          />
+          {/* Stub for Story 3.3 pipe-headers route (so RackGeneralPage navigation lands somewhere). */}
+          <Route
+            path="/audit/:auditId/section/refrigeration/rack/:rackId/pipe-headers"
+            element={
+              <RequireAuth surface={SURFACE}>
+                <div data-testid="pipe-headers-stub">Pipe Headers — Story 3.3</div>
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/audit/:auditId/section/refrigeration"
+            element={
+              <RequireAuth surface={SURFACE}>
+                <MachineRoomGeneralPage />
               </RequireAuth>
             }
           />

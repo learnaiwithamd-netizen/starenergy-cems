@@ -11,6 +11,8 @@ import { buildErrorHandler } from './middleware/error-handler.js'
 import { registerAuthHook } from './middleware/auth.js'
 import { registerRlsRequestHook } from './middleware/rls-request.js'
 import { registerAuditsRoutes } from './routes/audits.routes.js'
+import { registerMachineRoomsRoutes } from './routes/machine-rooms.routes.js'
+import { registerRacksRoutes } from './routes/racks.routes.js'
 import { registerAuthRoutes } from './routes/auth.routes.js'
 import { registerDbHealthRoute } from './routes/db-health.js'
 import { registerMeRoutes } from './routes/me.routes.js'
@@ -124,6 +126,8 @@ export async function buildApp(): Promise<FastifyInstance> {
   registerUsersRoutes(app)
   registerPasswordSetRoutes(app)
   registerAuditsRoutes(app)
+  registerMachineRoomsRoutes(app)
+  registerRacksRoutes(app)
   registerStoresRoutes(app)
 
   return app

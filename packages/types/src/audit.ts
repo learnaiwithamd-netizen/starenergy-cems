@@ -38,6 +38,11 @@ export interface AuditSection {
 export const auditListItemSchema = z.object({
   id: z.string().min(1),
   storeId: z.string().min(1).nullable(),
+  /** Human-readable store identifier — joined from `store_refs` server-side.
+   *  Used by the Resume CTA on the audit-app store selector to label the
+   *  draft even when the auditor's assigned-stores list no longer contains
+   *  the draft's store. (Story 2.3 P13 fix.) */
+  storeNumber: z.string().min(1).nullable().optional(),
   status: z.nativeEnum(AuditStatus),
   createdAt: z.string(),
   updatedAt: z.string(),
@@ -102,6 +107,10 @@ export type AuditSectionState = z.infer<typeof auditSectionStateSchema>
 export const auditDetailSchema = z.object({
   id: z.string().min(1),
   storeId: z.string().min(1),
+  /** Carrying `auditorUserId` on the detail payload lets the SPA fail closed
+   *  if a previously cached query somehow surfaces a peer auditor's audit;
+   *  the server also asserts this for AUDITOR callers (Story 2.3 P14). */
+  auditorUserId: z.string().min(1).nullable(),
   status: z.nativeEnum(AuditStatus),
   currentSectionId: sectionIdSchema.nullable(),
   formVersion: z.string(),
@@ -125,3 +134,113 @@ export const listAuditsQuerySchema = z.object({
   auditorId: z.string().min(1).optional(),
 })
 export type ListAuditsQuery = z.infer<typeof listAuditsQuerySchema>
+
+// ─── Story 3.1 — Machine Room entity schemas ─────────────────────────────────
+
+export const rackEntrySchema = z.object({
+  rackName: z.string().optional(),
+  suctionGroupNumber: z.string().optional(),
+  suctionGroupType: z.enum(['Low Temp.', 'Medium Temp.', 'Dual Temp.']).optional(),
+})
+export type RackEntry = z.infer<typeof rackEntrySchema>
+
+export const mrGeneralDataSchema = z.object({
+  machineRoomId: z.string().min(1),
+  location: z.enum(['Mezzanine', 'Penthouse', 'Main floor', 'Other']).optional(),
+  racks: z.array(rackEntrySchema).min(1),
+})
+export type MrGeneralData = z.infer<typeof mrGeneralDataSchema>
+
+export const mrVentilationDataSchema = z.object({
+  ventilationType: z.enum(['Forced', 'Natural']),
+  connectedToExhaust: z.enum(['Yes', 'No']).optional(),
+  setPointOn: z.number().optional(),
+  setPointOff: z.number().optional(),
+  controlBy: z.enum(['Thermostat', 'None']).optional(),
+})
+export type MrVentilationData = z.infer<typeof mrVentilationDataSchema>
+
+export const machineRoomDataSchema = z.object({
+  general: mrGeneralDataSchema.optional(),
+  ventilation: mrVentilationDataSchema.optional(),
+})
+export type MachineRoomData = z.infer<typeof machineRoomDataSchema>
+
+export const machineRoomSchema = z.object({
+  id: z.string(),
+  tenantId: z.string().optional(),
+  auditId: z.string(),
+  roomNumber: z.string(),
+  data: z.record(z.unknown()),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+})
+export type MachineRoom = z.infer<typeof machineRoomSchema>
+
+export const createMachineRoomBodySchema = z.object({
+  roomNumber: z.string().default('1'),
+})
+export type CreateMachineRoomBody = z.infer<typeof createMachineRoomBodySchema>
+
+export const createMachineRoomResponseSchema = machineRoomSchema
+export type CreateMachineRoomResponse = MachineRoom
+
+export const patchMachineRoomParamsSchema = z.object({
+  auditId: z.string().min(1),
+  roomId: z.string().min(1),
+})
+export type PatchMachineRoomParams = z.infer<typeof patchMachineRoomParamsSchema>
+
+export const patchMachineRoomBodySchema = z.object({
+  data: z.record(z.unknown()),
+})
+export type PatchMachineRoomBody = z.infer<typeof patchMachineRoomBodySchema>
+
+export const patchMachineRoomResponseSchema = z.object({
+  savedAt: z.string(),
+  roomId: z.string(),
+})
+export type PatchMachineRoomResponse = z.infer<typeof patchMachineRoomResponseSchema>
+
+export const listMachineRoomsResponseSchema = z.object({
+  machineRooms: z.array(machineRoomSchema),
+})
+export type ListMachineRoomsResponse = z.infer<typeof listMachineRoomsResponseSchema>
+
+// ─── Story 3.2 — Rack entity schemas ─────────────────────────────────────────
+
+export const rackSchema = z.object({
+  id: z.string(),
+  tenantId: z.string().optional(),
+  machineRoomId: z.string(),
+  rackNumber: z.string(),
+  data: z.record(z.unknown()),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+})
+export type Rack = z.infer<typeof rackSchema>
+
+export const createRackResponseSchema = rackSchema
+export type CreateRackResponse = Rack
+
+export const listRacksResponseSchema = z.object({ racks: z.array(rackSchema) })
+export type ListRacksResponse = z.infer<typeof listRacksResponseSchema>
+
+export const getRackResponseSchema = rackSchema
+export type GetRackResponse = Rack
+
+export const patchRackParamsSchema = z.object({
+  auditId: z.string().min(1),
+  roomId: z.string().min(1),
+  rackId: z.string().min(1),
+})
+export type PatchRackParams = z.infer<typeof patchRackParamsSchema>
+
+export const patchRackBodySchema = z.object({ data: z.record(z.unknown()) })
+export type PatchRackBody = z.infer<typeof patchRackBodySchema>
+
+export const patchRackResponseSchema = z.object({ savedAt: z.string(), rackId: z.string() })
+export type PatchRackResponse = z.infer<typeof patchRackResponseSchema>
+
+export const duplicateRackResponseSchema = rackSchema
+export type DuplicateRackResponse = Rack
