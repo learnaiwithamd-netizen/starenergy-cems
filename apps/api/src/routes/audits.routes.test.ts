@@ -247,6 +247,44 @@ describe('POST /api/v1/audits', () => {
     expect(res.statusCode).toBe(401)
     await app.close()
   })
+
+  it('403 when service throws StoreNotAssignedError (P15)', async () => {
+    const { StoreNotAssignedError } = await import('../lib/audit-errors.js')
+    auditServiceMock.createAuditDraft.mockRejectedValue(new StoreNotAssignedError())
+    const app = await buildTestApp()
+    const token = await makeToken(UserRole.AUDITOR)
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/audits',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: JSON.stringify({ storeId: 'store-unassigned' }),
+    })
+    expect(res.statusCode).toBe(403)
+    const body = JSON.parse(res.body)
+    expect(body.type).toBe('https://cems.starenergy.ca/errors/store-not-assigned')
+    await app.close()
+  })
+
+  it('409 with existing draft refs when DraftAlreadyExistsError thrown (P16)', async () => {
+    const { DraftAlreadyExistsError } = await import('../lib/audit-errors.js')
+    auditServiceMock.createAuditDraft.mockRejectedValue(
+      new DraftAlreadyExistsError('audit-existing', 'store-existing'),
+    )
+    const app = await buildTestApp()
+    const token = await makeToken(UserRole.AUDITOR)
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/audits',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: JSON.stringify({ storeId: 'store-1' }),
+    })
+    expect(res.statusCode).toBe(409)
+    const body = JSON.parse(res.body)
+    expect(body.type).toBe('https://cems.starenergy.ca/errors/draft-already-exists')
+    expect(body.existingAuditId).toBe('audit-existing')
+    expect(body.existingStoreId).toBe('store-existing')
+    await app.close()
+  })
 })
 
 describe('GET /api/v1/audits/:id (Story 2.3)', () => {
@@ -273,6 +311,7 @@ describe('GET /api/v1/audits/:id (Story 2.3)', () => {
       id: 'audit-1',
       storeId: 'store-001',
       status: 'DRAFT',
+      auditorUserId: 'user-1',
       currentSectionId: 'general',
       formVersion: '1.0',
       compressorDbVersion: '2.0',

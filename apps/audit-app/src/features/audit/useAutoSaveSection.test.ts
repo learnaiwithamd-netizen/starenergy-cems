@@ -135,7 +135,7 @@ describe('useAutoSaveSection', () => {
     expect(result.current.state).toBe('saved')
   })
 
-  it('on 4xx → state stays error and does NOT retry', async () => {
+  it('on 4xx → state goes to error-terminal and does NOT retry (P4)', async () => {
     fetchMock.mockResolvedValue(
       new Response(JSON.stringify({ status: 422, title: 'Validation', detail: 'bad' }), {
         status: 422,
@@ -152,7 +152,7 @@ describe('useAutoSaveSection', () => {
       await Promise.resolve()
       await Promise.resolve()
     })
-    expect(result.current.state).toBe('error')
+    expect(result.current.state).toBe('error-terminal')
     expect(fetchMock).toHaveBeenCalledTimes(1)
 
     act(() => {
@@ -160,6 +160,79 @@ describe('useAutoSaveSection', () => {
     })
     // No retry attempted.
     expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('terminal-error latches: subsequent save() calls are ignored (P4)', async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ status: 422 }), {
+        status: 422,
+        headers: { 'Content-Type': 'application/problem+json' },
+      }),
+    )
+    const { result } = renderHook(() => useAutoSaveSection('audit-1', 'general'))
+
+    act(() => { result.current.save({ a: 1 }) })
+    await act(async () => {
+      vi.advanceTimersByTime(800)
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(result.current.state).toBe('error-terminal')
+
+    act(() => { result.current.save({ a: 2 }) })
+    act(() => { vi.advanceTimersByTime(2_000) })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('perceivedOffline flips true after 2 consecutive network failures (P3)', async () => {
+    // Reject the fetch (network error, not ApiError) twice.
+    fetchMock.mockRejectedValue(new TypeError('Failed to fetch'))
+    const { result } = renderHook(() =>
+      useAutoSaveSection('audit-1', 'general', { retryDelaysMs: [100, 100, 100] }),
+    )
+
+    act(() => { result.current.save({ a: 1 }) })
+    // First attempt
+    await act(async () => {
+      vi.advanceTimersByTime(800)
+      await Promise.resolve(); await Promise.resolve(); await Promise.resolve()
+    })
+    expect(result.current.perceivedOffline).toBe(false)
+
+    // Retry fires after 100ms — second consecutive failure
+    await act(async () => {
+      vi.advanceTimersByTime(120)
+      await Promise.resolve(); await Promise.resolve(); await Promise.resolve()
+    })
+    expect(result.current.perceivedOffline).toBe(true)
+  })
+
+  it('perceivedOffline resets to false on next successful save', async () => {
+    fetchMock
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockResolvedValueOnce(
+        jsonResponse({ sectionId: 'general', savedAt: '2026-05-09T10:00:00.000Z' }),
+      )
+    const { result } = renderHook(() =>
+      useAutoSaveSection('audit-1', 'general', { retryDelaysMs: [50, 50, 50] }),
+    )
+    act(() => { result.current.save({ a: 1 }) })
+    await act(async () => {
+      vi.advanceTimersByTime(800)
+      await Promise.resolve(); await Promise.resolve()
+    })
+    await act(async () => {
+      vi.advanceTimersByTime(60)
+      await Promise.resolve(); await Promise.resolve()
+    })
+    expect(result.current.perceivedOffline).toBe(true)
+    await act(async () => {
+      vi.advanceTimersByTime(60)
+      await Promise.resolve(); await Promise.resolve(); await Promise.resolve()
+    })
+    expect(result.current.perceivedOffline).toBe(false)
+    expect(result.current.state).toBe('saved')
   })
 
   it('window.online event flushes pending payload immediately', async () => {

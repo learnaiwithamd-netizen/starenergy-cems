@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-20
-last_updated: 2026-05-09
+last_updated: 2026-05-23
 project: Star Energy CEMS
 project_key: NOKEY
 tracking_system: file-system
@@ -79,10 +79,10 @@ development_status:
   # ─────────────────────────────────────────────
   # Epic 3: Refrigeration Data Collection (Core Audit Engine)
   # ─────────────────────────────────────────────
-  epic-3: backlog
-  3-1-audit-breadcrumb-and-machine-room-screen: backlog
-  3-2-rack-entry-navigation-and-equipment-duplication: backlog
-  3-3-compressor-screens-and-regression-db-lookup: backlog
+  epic-3: in-progress
+  3-1-audit-breadcrumb-and-machine-room-screen: done
+  3-2-rack-entry-navigation-and-equipment-duplication: done
+  3-3-compressor-screens-and-regression-db-lookup: review
   3-4-condenser-walk-in-and-display-case-screens: backlog
   3-5-controller-systems-screens-and-refrigeration-section-completion: backlog
   3-6-multi-auditor-section-locking: backlog

@@ -44,6 +44,7 @@ function buildAudit(overrides: Partial<AuditDetail> = {}): AuditDetail {
     id: 'audit-abc',
     storeId: 'store-001',
     status: AuditStatus.DRAFT,
+    auditorUserId: null,
     currentSectionId: null,
     formVersion: '1.0',
     compressorDbVersion: '2.0',
@@ -143,7 +144,7 @@ describe('SectionEditPage — general section', () => {
 
     await user.type(screen.getByTestId('general-weather'), 'Cloudy')
     await waitFor(
-      () => expect(screen.getByText('✓ Saved')).toBeInTheDocument(),
+      () => expect(screen.getByText(/Saved/)).toBeInTheDocument(),
       { timeout: 2_000 },
     )
   })

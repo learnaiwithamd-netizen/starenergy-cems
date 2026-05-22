@@ -43,6 +43,7 @@ const baseAudit: AuditDetail = {
   id: 'audit-abc',
   storeId: 'store-001',
   status: AuditStatus.DRAFT,
+  auditorUserId: null,
   currentSectionId: null,
   formVersion: '1.0',
   compressorDbVersion: '2.0',

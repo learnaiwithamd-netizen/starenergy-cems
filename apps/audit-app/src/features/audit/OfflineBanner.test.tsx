@@ -66,13 +66,13 @@ describe('OfflineBanner', () => {
     expect(screen.getByTestId('offline-banner').textContent).toContain('3h ago')
   })
 
-  it('shows "never" when lastSavedAt is null', () => {
+  it('shows fallback message when lastSavedAt is null (P10)', () => {
     onLineValue = false
     render(<OfflineBanner lastSavedAt={null} />)
     act(() => {
       window.dispatchEvent(new Event('offline'))
     })
-    expect(screen.getByTestId('offline-banner').textContent).toContain('never')
+    expect(screen.getByTestId('offline-banner').textContent).toContain('not yet')
   })
 
   it('disappears after online event', () => {

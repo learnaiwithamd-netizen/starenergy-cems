@@ -172,6 +172,47 @@ so that a browser close, network drop, or mid-audit interruption never results i
   - [x] Flip Status from `in-progress` → `review`.
   - [x] Update `sprint-status.yaml`: `2-3-auto-save-and-session-resume: in-progress` → `review`.
 
+### Review Findings
+
+_Three reviewers run in parallel: Blind Hunter (diff-only), Edge Case Hunter (diff + project), Acceptance Auditor (diff + spec). Triaged 2026-05-09 against commit `2e93721`._
+
+**Decision-needed (3 — resolved 2026-05-16):**
+
+- [x] [Review][Decision → Patch] **Auth scope: AUDITOR access to `GET /api/v1/audits/:id` and `createAuditDraft`.** Resolved: tighten both (least-privilege). `getAuditDetail` asserts AUDITOR owns the audit. `createAuditDraft` checks `rls.assignedStoreIds` includes `body.storeId`. Promoted to patches P14 + P15.
+- [x] [Review][Decision → Patch] **One-DRAFT-per-auditor invariant.** Resolved: enforce at write. Product semantic is one auditor → one site at a time; admin reassignment (future story) is the resolution path for site-switch mid-draft. `createAuditDraft` returns 409 if AUDITOR already has a DRAFT; body includes existing `{ auditId, storeId }`. SPA shows friendly message on 409. Admin reassignment UI is OUT of scope for 2.3 (future story, likely Epic 7). Promoted to patch P16.
+- [x] [Review][Decision → Defer] **Concurrent two-tab PATCH lost-update.** Resolved: defer to Story 3.6 (section locking). Recorded in `deferred-work.md`.
+
+**Patches (12 — unambiguous fixes):**
+
+- [ ] [Review][Patch] HIGH — auditId/sectionId change leaks pending payload (refs/timers not reset on prop change) [`apps/audit-app/src/features/audit/useAutoSaveSection.ts`]
+- [ ] [Review][Patch] HIGH — TOCTOU on `patchAuditSection`: ownership check is separate from update; fold `auditorUserId + status='DRAFT'` into the `tx.audit.update` where-clause for atomic enforcement (P2025 already trapped) [`apps/api/src/repositories/audit.repo.ts`, `apps/api/src/services/audit.service.ts`]
+- [ ] [Review][Patch] MED — AC4 violation: banner doesn't trigger on 2 consecutive network-error PATCHes — only on `navigator.onLine`. Add a counter in `useAutoSaveSection` that flips a "perceived offline" signal after 2 consecutive network errors and pass it to `OfflineBanner` [`apps/audit-app/src/features/audit/useAutoSaveSection.ts`, `OfflineBanner.tsx`]
+- [ ] [Review][Patch] MED — 4xx terminal failure leaves indicator stuck on "Save failed — retrying" forever; pendingDataRef orphans new typing. Switch to a distinct terminal state with copy "Save failed — please reload" per AC3, and clear pending [`apps/audit-app/src/features/audit/useAutoSaveSection.ts`, `AutoSaveIndicator.tsx`]
+- [ ] [Review][Patch] MED — Empty-string form fields force section to "In Progress" forever — can't return to Not Started. Strip empty values before PATCH OR change `deriveStatus` to count only non-empty values [`apps/audit-app/src/features/audit/SectionEditPage.tsx`, `SectionOverviewPage.tsx`]
+- [ ] [Review][Patch] MED — Unknown `currentSectionId` from server crashes Continue UI / Navigate loop. Repo normalizes unknown→null; SPA defends with fallback label [`apps/api/src/repositories/audit.repo.ts:242`, `SectionOverviewPage.tsx`, `SectionEditPage.tsx`]
+- [ ] [Review][Patch] MED — Pending payload (up to 800 ms typing) silently lost on unmount/navigation. Flush on unmount via `flush()` in cleanup or `navigator.sendBeacon` [`apps/audit-app/src/features/audit/useAutoSaveSection.ts`]
+- [ ] [Review][Patch] LOW — `formatRelative` overflows past 24h ("999h ago"). Add days handling [`apps/audit-app/src/features/audit/OfflineBanner.tsx`]
+- [ ] [Review][Patch] LOW — `OfflineBanner` `role="alert"` (assertive) conflicts with `aria-live="polite"`. Change to `role="status"` [`apps/audit-app/src/features/audit/OfflineBanner.tsx`]
+- [ ] [Review][Patch] LOW — "last saved never" deviates from AC4's literal "Xm ago" phrasing when offline before any save. Better fallback wording [`apps/audit-app/src/features/audit/OfflineBanner.tsx`]
+- [ ] [Review][Patch] LOW — `AutoSaveIndicator` ✓ should be `aria-hidden="true"` for consistency with SectionOverviewPage's checkmark treatment [`apps/audit-app/src/features/audit/AutoSaveIndicator.tsx`]
+- [ ] [Review][Patch] LOW — Resume CTA falls back to "(your last store)" when assignment changed. Include `storeNumber` on `AuditListItem` payload OR look up via `getAuditById` [`apps/audit-app/src/features/store-selector/StoreSelectorPage.tsx`, types/audit.ts]
+- [ ] [Review][Patch] HIGH (from D1) — `getAuditDetail` cross-auditor info disclosure within tenant. Service asserts AUDITOR caller is the audit's `auditorUserId`; ADMIN/CLIENT pass through (RLS handles them) [`apps/api/src/services/audit.service.ts`]
+- [ ] [Review][Patch] HIGH (from D1) — `createAuditDraft` allows any tenant store. Service checks `rls.assignedStoreIds.includes(body.storeId)` for AUDITOR caller [`apps/api/src/services/audit.service.ts`]
+- [ ] [Review][Patch] MED (from D2) — One-DRAFT-per-auditor invariant. `createAuditDraft` returns 409 if AUDITOR already has a DRAFT (body: `{ existingAuditId, existingStoreId }`). SPA shows friendly message + nudge to Resume CTA [`apps/api/src/services/audit.service.ts`, `apps/api/src/lib/audit-errors.ts`, `apps/api/src/middleware/error-handler.ts`, `apps/audit-app/src/features/audit/AuditNewPage.tsx`]
+
+**Deferred (10 — recorded in `deferred-work.md`):**
+
+- [x] [Review][Defer] `online` event interrupts active debounce, flushing partial typing — minor UX, low blast radius
+- [x] [Review][Defer] `setTimeout` for saved-fade leaks if fetch resolves post-unmount — React 18 silently ignores
+- [x] [Review][Defer] Clock skew sticks at "<1m ago" — rare; covered by `Math.max(0, ...)` clamp
+- [x] [Review][Defer] OfflineBanner relative-time not memoized / timer-driven — text freezes mid-offline
+- [x] [Review][Defer] `JSON.stringify` on non-serializable form data fails mid-transaction — Prisma rolls back, generic 500
+- [x] [Review][Defer] `parseSectionData` silently returns `{}` on malformed JSON with no telemetry — observability future story
+- [x] [Review][Defer] `useInProgressDraft` `staleTime: 0` re-fetches on every mount — intentional per spec
+- [x] [Review][Defer] Empty `{}` PATCH still bumps `audits.updated_at` — sub-case of empty-string patch (P5)
+- [x] [Review][Defer] Service tests use shared `fakeTx` without RLS exercise — test architecture future cleanup
+- [x] [Review][Defer] `useAuditDetail` 30 s refetch may diverge from form state — low likelihood; no `reset()` wired
+
 ## Dev Notes
 
 ### Why a separate `audit_sections` row, not the JSON columns on `audits`?
@@ -303,18 +344,76 @@ claude-opus-4-7[1m]
 
 ### Debug Log References
 
-_(populated at completion)_
+- API total after 2.3: **242 passing, 1 skipped** (2 net-new tests in audit.repo + service + routes vs the pre-2.3 240/1 baseline). audit-app: **83 passing, 1 skipped** (vs 56/1 before 2.3 — added 8 hook + 5 indicator + 3 network-status + 7 banner + 4 SectionOverviewPage + 8 SectionEditPage + 2 StoreSelectorPage Resume CTA tests; net-new ≈ 27).
+- Test-pollution debug: useNetworkStatus's `dispatchEvent(new Event('offline'))` in the SectionEditPage offline test left TanStack Query v5's internal `onlineManager` in a paused state. Subsequent tests' queries stayed in `pending`/`paused` indefinitely (no fetch fired, no skeleton rendered, no data). Fix: dispatch `online` in `afterEach` to release the manager. Same defensive cleanup added to StoreSelectorPage tests.
+- The `useAutoSaveSection` hook deliberately uses raw `apiFetch` rather than the `useUpsertAuditSection` mutation hook. Reason: the mutation hook returns a stable `mutate` callback bound to `auditId`/`sectionId`, but the auto-save needs single-in-flight + debounce + retry semantics that don't fit `useMutation`'s queueing model. The mutation hook is exposed in `audit-api.ts` for future imperative use cases.
+- `SECTION_LABELS` is duplicated between `SectionOverviewPage.tsx` and `SectionEditPage.tsx` — that's intentional. Centralising it would force one component to import the other; the labels are short and unlikely to drift before Story 2.4 owns the full overview UX.
+- The repo's `upsertAuditSection` traps Prisma's `P2025` ("record not found") on the `audit.update` step and re-throws as `AuditNotEditableError`. This handles the rare race where the audit was deleted between the service's ownership check and the update.
 
 ### Completion Notes List
 
-_(populated at completion)_
+✅ **T1 — Sprint-status flip.** `2-3-auto-save-and-session-resume: backlog → in-progress` (and ultimately `→ review`); `last_updated: 2026-05-09`.
+
+✅ **T2 — Shared types.** `packages/types/src/audit.ts` gained `SECTION_IDS`, `sectionIdSchema`, `patchAuditSectionParamsSchema`, `patchAuditSectionBodySchema`, `patchAuditSectionResponseSchema`, `auditSectionStateSchema`, `auditDetailSchema`, `listAuditsQuerySchema`. `auditDetailSchema.sections` is `z.array(auditSectionStateSchema)` so the SPA pre-fill payload is fully typed end-to-end.
+
+✅ **T3 — Repo.** `getAuditOwnership` reads only the editability-check fields (`auditorUserId`, `status`). `upsertAuditSection` does `audit.update` then `auditSection.upsert`, returning `{ savedAt }` from `audit.updatedAt`. P2025 trap → `AuditNotEditableError` for the delete-mid-flight race. `getAuditById` selects + maps sections; bad JSON falls back to `{}`. `listAuditsForCaller` extended with `status` + `auditorUserId` filters; default sort flipped to `updatedAt desc`. 18 repo tests, all green.
+
+✅ **T4 — Service.** `patchAuditSection` enforces AUDITOR + ownership + DRAFT (uniform `AuditNotEditableError`); `getAuditDetail` calls repo via `withRls` and throws `AuditNotFoundError` on null. `listAudits` resolves `auditorId='me'` server-side and forces AUDITOR scope to `rls.userId` regardless of input (defense in depth — RLS doesn't auto-filter by authoring auditor). 19 service tests, all green.
+
+✅ **T5 — Routes.** `PATCH /api/v1/audits/:id/sections/:sectionId`, `GET /api/v1/audits/:id`, plus `GET /api/v1/audits` extended with `?status&auditorId` query coercion. `error-handler.ts` gained `audit-not-editable` (404) + `audit-not-found` (404) RFC 7807 mappings. 21 route tests, all green.
+
+✅ **T6 — useAutoSaveSection.** Debounced 800 ms. Coalesces N keystrokes → 1 PATCH. Single-in-flight invariant (queues new payloads). Retries 5xx/network at 2s → 5s → 15s. 4xx never retries (no masking logic bugs). Listens to `window.online` to flush pending payload on reconnect. 8 hook tests with fake timers, all green.
+
+✅ **T7 — Indicator + banner + network status.** `AutoSaveIndicator` is `aria-live="polite"`; renders nothing on idle/saving (silent per AC1), `✓ Saved` on saved, `Save failed — retrying` on error. `OfflineBanner` only renders when `navigator.onLine === false`; relative-time formatter handles <1m / Xm / Xh. `useNetworkStatus` is SSR-safe. 15 component+hook tests, all green.
+
+✅ **T8 — SectionOverviewPage (real).** Replaced 2.2 placeholder. Fetches `useAuditDetail`, derives Not-Started / In-Progress (Complete is hooked up but the completedAt logic is owned by 2.4). Continue CTA links to `current_section_id` when set. 12 tests, all green.
+
+✅ **T9 — SectionEditPage.** New page at `/audit/:auditId/section/:sectionId`. For `general`: react-hook-form with `auditDate`, `weatherConditions`, `onSiteContact`, `generalNotes` — `watch()` subscription pipes form state into `useAutoSaveSection.save()`. For other sections: stub prose + a "Save test value (auto-save proof)" button so the AC1 contract ("any section") is observable. Renders `OfflineBanner` (top) + `AutoSaveIndicator` (next to heading). 8 tests, all green.
+
+✅ **T10 — Resume detection + audit-api hooks.** `useAuditDetail`, `useInProgressDraft` (returns most-recent DRAFT or null via `select`), and `useUpsertAuditSection` added to `audit-api.ts`. `StoreSelectorPage` renders a Resume CTA above the search when a draft exists, looking up the store number from the existing `useAssignedStores` cache. 7 StoreSelectorPage tests (5 prior + 2 net-new for Resume), all green.
+
+✅ **T11 — Routing.** `App.tsx` adds `/audit/:auditId` → `SectionOverviewPage`; `/audit/:auditId/section/:sectionId` now → `SectionEditPage`. `AuditNewPage` post-create navigation flipped to `/audit/${auditId}` (Section Overview). AuditNewPage test updated to assert the new redirect target.
+
+✅ **T12 — Validations.** `pnpm turbo run type-check` (10/10 successful), `pnpm --filter audit-app lint` (clean), `pnpm turbo run test` (12/12 successful — full workspace 242+1 api tests, 83+1 audit-app tests).
+
+✅ **T13 — Finalisation.** All Tasks/Subtasks ticked, Dev Agent Record populated, Change Log row added, Status flipped to `review`, sprint-status `2-3-…: in-progress → review`.
+
+**Out-of-scope items NOT done (deferred):**
+- Per-section "Complete" state UI + completedAt write-side — Story 2.4.
+- Real refrigeration / HVAC / Lighting / Building Envelope forms — Story 3.x / 5.x. SectionEditPage stubs in place.
+- IndexedDB / true offline-first writes — future story; 2.3's offline UX is detect+retry.
+- Section-locking concurrency (FR54-57) — Story 3.6.
+- Full per-field validation rules for the General section — Story 5.1.
 
 ### File List
 
-_(populated at completion)_
+**Modified:**
+- `packages/types/src/audit.ts` — auto-save / resume schemas
+- `apps/api/src/repositories/audit.repo.ts` + `.test.ts` — `upsertAuditSection`, `getAuditById`, `getAuditOwnership`; list filters
+- `apps/api/src/services/audit.service.ts` + `.test.ts` — `patchAuditSection`, `getAuditDetail`, `listAudits`
+- `apps/api/src/routes/audits.routes.ts` + `.test.ts` — PATCH + GET-by-id + extended list
+- `apps/api/src/middleware/error-handler.ts` — `audit-not-editable` + `audit-not-found` problem-detail mappings
+- `apps/audit-app/src/App.tsx` — added `/audit/:auditId` overview route; SectionEditPage at section route
+- `apps/audit-app/src/features/audit/audit-api.ts` — `useAuditDetail`, `useInProgressDraft`, `useUpsertAuditSection`
+- `apps/audit-app/src/features/audit/AuditNewPage.tsx` + `.test.tsx` — post-create redirect → `/audit/:auditId`
+- `apps/audit-app/src/features/audit/SectionOverviewPage.tsx` + `.test.tsx` — real implementation (replaces 2.2 placeholder)
+- `apps/audit-app/src/features/store-selector/StoreSelectorPage.tsx` + `.test.tsx` — Resume CTA above store list
+- `docs/bmad/_bmad-output/implementation-artifacts/sprint-status.yaml`
+
+**Created:**
+- `apps/api/src/lib/audit-errors.ts` — `AuditNotEditableError`, `AuditNotFoundError`, `StoreNotFoundError`
+- `apps/audit-app/src/features/audit/useAutoSaveSection.ts` + `.test.ts`
+- `apps/audit-app/src/features/audit/useNetworkStatus.ts` + `.test.ts`
+- `apps/audit-app/src/features/audit/AutoSaveIndicator.tsx` + `.test.tsx`
+- `apps/audit-app/src/features/audit/OfflineBanner.tsx` + `.test.tsx`
+- `apps/audit-app/src/features/audit/SectionEditPage.tsx` + `.test.tsx`
+- `docs/bmad/_bmad-output/implementation-artifacts/2-3-auto-save-and-session-resume.md` (this file)
+
+**Deleted:** none.
 
 ## Change Log
 
 | Date | Change | Author |
 |---|---|---|
 | 2026-05-09 | Story spec authored inline from epic-02 ACs (no separate create-story run). | dev-story (claude-opus-4-7[1m]) |
+| 2026-05-09 | Implementation complete — 13 tasks, 6 ACs satisfied. API: PATCH section, GET-by-id, extended list with filters. SPA: useAutoSaveSection (debounced 800 ms + retry), AutoSaveIndicator + OfflineBanner, real SectionOverviewPage, new SectionEditPage with general-section form, Resume CTA on StoreSelectorPage. Net-new tests: 6 api (audit.repo + service + routes deltas), 27 audit-app (hook, indicator, banner, network-status, overview, edit, resume). Full workspace lint + type-check + test suite green. Status → review. | dev-story (claude-opus-4-7[1m]) |

@@ -8,7 +8,7 @@ const { fakeTx, repoMock } = vi.hoisted(() => ({
   repoMock: {
     createAudit: vi.fn(),
     getLatestCompressorDbVersion: vi.fn(),
-    getAuditOwnership: vi.fn(),
+    findActiveDraftForAuditor: vi.fn(),
     upsertAuditSection: vi.fn(),
     getAuditById: vi.fn(),
     listAuditsForCaller: vi.fn(),
@@ -22,7 +22,13 @@ import {
   listAudits,
   patchAuditSection,
 } from './audit.service.js'
-import { StoreNotFoundError } from '../lib/audit-errors.js'
+import {
+  AuditNotEditableError,
+  AuditNotFoundError,
+  DraftAlreadyExistsError,
+  StoreNotAssignedError,
+  StoreNotFoundError,
+} from '../lib/audit-errors.js'
 
 interface FakeRequest {
   rlsContext: {
@@ -34,11 +40,28 @@ interface FakeRequest {
   withRls: <T>(fn: (tx: unknown) => Promise<T>) => Promise<T>
 }
 
-function fakeRequest(role: UserRole, userId = 'user-1'): FakeRequest {
+function fakeRequest(
+  role: UserRole,
+  userId = 'user-1',
+  assignedStoreIds: readonly string[] = ['store-1'],
+): FakeRequest {
   return {
-    rlsContext: { tenantId: 'tenant-a', userId, role, assignedStoreIds: [] },
+    rlsContext: { tenantId: 'tenant-a', userId, role, assignedStoreIds },
     withRls: <T>(fn: (tx: unknown) => Promise<T>) => fn(fakeTx),
   }
+}
+
+const sampleDetail = {
+  id: 'audit-1',
+  storeId: 'store-001',
+  auditorUserId: 'user-1',
+  status: AuditStatus.DRAFT,
+  currentSectionId: 'general' as const,
+  formVersion: '1.0',
+  compressorDbVersion: '2.0',
+  createdAt: '2026-05-08T10:00:00.000Z',
+  updatedAt: '2026-05-09T10:00:00.000Z',
+  sections: [],
 }
 
 describe('audit.service', () => {
@@ -46,11 +69,12 @@ describe('audit.service', () => {
     vi.clearAllMocks()
     repoMock.getLatestCompressorDbVersion.mockResolvedValue('2.0')
     repoMock.createAudit.mockResolvedValue({ auditId: 'new-audit-1' })
+    repoMock.findActiveDraftForAuditor.mockResolvedValue(null)
     fakeTx.storeRef.findUnique.mockResolvedValue({ id: 'store-1' })
   })
 
   describe('createAuditDraft', () => {
-    it('creates a DRAFT audit and returns auditId for AUDITOR', async () => {
+    it('creates a DRAFT audit and returns auditId for AUDITOR on assigned store', async () => {
       const req = fakeRequest(UserRole.AUDITOR)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const result = await createAuditDraft({ storeId: 'store-1' }, { request: req as any })
@@ -80,11 +104,39 @@ describe('audit.service', () => {
       expect(callArg.compressorDbVersion).toBe('3.5')
     })
 
+    it('throws StoreNotAssignedError when AUDITOR is not assigned to the store (P15)', async () => {
+      const req = fakeRequest(UserRole.AUDITOR, 'user-1', ['store-other'])
+      await expect(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        createAuditDraft({ storeId: 'store-1' }, { request: req as any }),
+      ).rejects.toBeInstanceOf(StoreNotAssignedError)
+      expect(repoMock.createAudit).not.toHaveBeenCalled()
+      // Must reject BEFORE hitting the DB so unassigned stores can't be enumerated.
+      expect(fakeTx.storeRef.findUnique).not.toHaveBeenCalled()
+    })
+
+    it('throws DraftAlreadyExistsError when AUDITOR already has a DRAFT (P16)', async () => {
+      repoMock.findActiveDraftForAuditor.mockResolvedValue({
+        id: 'audit-existing',
+        storeId: 'store-existing',
+      })
+      const req = fakeRequest(UserRole.AUDITOR)
+      await expect(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        createAuditDraft({ storeId: 'store-1' }, { request: req as any }),
+      ).rejects.toMatchObject({
+        name: 'DraftAlreadyExistsError',
+        existingAuditId: 'audit-existing',
+        existingStoreId: 'store-existing',
+      })
+      expect(repoMock.createAudit).not.toHaveBeenCalled()
+    })
+
     it('throws StoreNotFoundError when storeId not found in tenant', async () => {
       fakeTx.storeRef.findUnique.mockResolvedValue(null)
       const req = fakeRequest(UserRole.AUDITOR)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await expect(createAuditDraft({ storeId: 'missing' }, { request: req as any })).rejects.toBeInstanceOf(
+      await expect(createAuditDraft({ storeId: 'store-1' }, { request: req as any })).rejects.toBeInstanceOf(
         StoreNotFoundError,
       )
       expect(repoMock.createAudit).not.toHaveBeenCalled()
@@ -108,11 +160,7 @@ describe('audit.service', () => {
       repoMock.upsertAuditSection.mockResolvedValue({ savedAt: '2026-05-09T10:00:00.000Z' })
     })
 
-    it('AUDITOR + own DRAFT → upserts section and returns savedAt', async () => {
-      repoMock.getAuditOwnership.mockResolvedValue({
-        auditorUserId: 'user-1',
-        status: AuditStatus.DRAFT,
-      })
+    it('AUDITOR → upserts section with auditorUserId for atomic check (P2)', async () => {
       const req = fakeRequest(UserRole.AUDITOR)
       const res = await patchAuditSection(
         { id: 'audit-1', sectionId: 'general' },
@@ -124,6 +172,7 @@ describe('audit.service', () => {
       expect(repoMock.upsertAuditSection).toHaveBeenCalledWith(fakeTx, {
         tenantId: 'tenant-a',
         auditId: 'audit-1',
+        auditorUserId: 'user-1',
         sectionId: 'general',
         data: { auditDate: '2026-05-09' },
       })
@@ -154,8 +203,8 @@ describe('audit.service', () => {
       ).rejects.toThrow('Role not permitted')
     })
 
-    it('throws AuditNotEditableError when audit not found in RLS scope', async () => {
-      repoMock.getAuditOwnership.mockResolvedValue(null)
+    it('surfaces repo AuditNotEditableError (atomic where-clause miss) directly', async () => {
+      repoMock.upsertAuditSection.mockRejectedValue(new AuditNotEditableError())
       const req = fakeRequest(UserRole.AUDITOR)
       await expect(
         patchAuditSection(
@@ -164,72 +213,51 @@ describe('audit.service', () => {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           { request: req as any },
         ),
-      ).rejects.toThrow('Audit not found or not editable')
-      expect(repoMock.upsertAuditSection).not.toHaveBeenCalled()
-    })
-
-    it('throws AuditNotEditableError when audit owned by another auditor', async () => {
-      repoMock.getAuditOwnership.mockResolvedValue({
-        auditorUserId: 'other-user',
-        status: AuditStatus.DRAFT,
-      })
-      const req = fakeRequest(UserRole.AUDITOR, 'user-1')
-      await expect(
-        patchAuditSection(
-          { id: 'audit-1', sectionId: 'general' },
-          { data: {} },
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          { request: req as any },
-        ),
-      ).rejects.toThrow('Audit not found or not editable')
-      expect(repoMock.upsertAuditSection).not.toHaveBeenCalled()
-    })
-
-    it('throws AuditNotEditableError when audit no longer DRAFT', async () => {
-      repoMock.getAuditOwnership.mockResolvedValue({
-        auditorUserId: 'user-1',
-        status: AuditStatus.SUBMITTED,
-      })
-      const req = fakeRequest(UserRole.AUDITOR)
-      await expect(
-        patchAuditSection(
-          { id: 'audit-1', sectionId: 'general' },
-          { data: {} },
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          { request: req as any },
-        ),
-      ).rejects.toThrow('Audit not found or not editable')
-      expect(repoMock.upsertAuditSection).not.toHaveBeenCalled()
+      ).rejects.toBeInstanceOf(AuditNotEditableError)
     })
   })
 
   describe('getAuditDetail', () => {
-    it('returns the repo result when found', async () => {
-      const detail = {
-        id: 'audit-1',
-        storeId: 'store-001',
-        status: AuditStatus.DRAFT,
-        currentSectionId: 'general' as const,
-        formVersion: '1.0',
-        compressorDbVersion: '2.0',
-        createdAt: '2026-05-08T10:00:00.000Z',
-        updatedAt: '2026-05-09T10:00:00.000Z',
-        sections: [],
-      }
-      repoMock.getAuditById.mockResolvedValue(detail)
-      const req = fakeRequest(UserRole.AUDITOR)
+    it('AUDITOR sees own audit', async () => {
+      repoMock.getAuditById.mockResolvedValue(sampleDetail)
+      const req = fakeRequest(UserRole.AUDITOR, 'user-1')
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const res = await getAuditDetail('audit-1', { request: req as any })
-      expect(res).toEqual(detail)
+      expect(res).toEqual(sampleDetail)
       expect(repoMock.getAuditById).toHaveBeenCalledWith(fakeTx, 'audit-1')
     })
 
-    it('throws AuditNotFoundError when null', async () => {
+    it('AUDITOR viewing peer audit → AuditNotFoundError (P14)', async () => {
+      repoMock.getAuditById.mockResolvedValue({ ...sampleDetail, auditorUserId: 'other-user' })
+      const req = fakeRequest(UserRole.AUDITOR, 'user-1')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await expect(getAuditDetail('audit-1', { request: req as any })).rejects.toBeInstanceOf(
+        AuditNotFoundError,
+      )
+    })
+
+    it('ADMIN sees any audit in tenant', async () => {
+      repoMock.getAuditById.mockResolvedValue({ ...sampleDetail, auditorUserId: 'other-user' })
+      const req = fakeRequest(UserRole.ADMIN, 'admin-1')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const res = await getAuditDetail('audit-1', { request: req as any })
+      expect(res.id).toBe('audit-1')
+    })
+
+    it('CLIENT sees any audit visible via RLS (store-scoped)', async () => {
+      repoMock.getAuditById.mockResolvedValue({ ...sampleDetail, auditorUserId: 'other-user' })
+      const req = fakeRequest(UserRole.CLIENT, 'client-1')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const res = await getAuditDetail('audit-1', { request: req as any })
+      expect(res.id).toBe('audit-1')
+    })
+
+    it('throws AuditNotFoundError when repo returns null', async () => {
       repoMock.getAuditById.mockResolvedValue(null)
       const req = fakeRequest(UserRole.AUDITOR)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await expect(getAuditDetail('audit-x', { request: req as any })).rejects.toThrow(
-        'Audit not found',
+      await expect(getAuditDetail('audit-x', { request: req as any })).rejects.toBeInstanceOf(
+        AuditNotFoundError,
       )
     })
   })

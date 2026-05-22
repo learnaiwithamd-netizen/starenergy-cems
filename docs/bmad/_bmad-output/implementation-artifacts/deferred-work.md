@@ -181,3 +181,35 @@ Findings from a second-pass review (Blind Hunter + Edge Case Hunter + Acceptance
 - **`apps/api/src/app.ts` doesn't register Swagger/CORS/validators despite declared deps** [apps/api/src/app.ts] — Story 0.4 wires all middleware.
 - **`requirements.txt` no hash pinning, no ruff/mypy** [apps/calc-service] — Python tooling hardening in Story 0.5.
 - **`typescript` devDep duplicated in every package** [packages/*/package.json] — hoist-to-root refactor; low priority.
+
+## Deferred from: code review of 3-1-audit-breadcrumb-and-machine-room-screen (2026-05-16)
+
+- **Array index as `key` in `AuditBreadcrumb`** [`apps/audit-app/src/features/audit/AuditBreadcrumb.tsx:20`] — no runtime re-ordering in current usage; use `segment.label` as stable key if segment list ever becomes dynamic in a later story.
+- **`flush()` fire-and-forget navigation** [`MachineRoomGeneralPage.tsx:103`, `MachineRoomVentilationPage.tsx:98`] — navigation fires before save completes if a save is in-flight; same accepted trade-off from Story 2.3's `SectionEditPage`; revisit if user-reported data loss surfaces.
+- **No set-point °F range validation** [`MachineRoomVentilationPage.tsx`] — no spec requirement for range bounds; unrealistic values (e.g., −9999 or 9999) are accepted by the form and stored; calc-service Pydantic validation in Story 8 is the intended gate.
+- **`staleTime: 30_000` on `useMachineRooms` — refetch can overwrite in-progress edits** [`machine-room-api.ts`] — low likelihood with single-auditor sessions; revisit alongside Story 3.6 (section locking) which will add cooperative edit detection.
+- **Stale closure in `useAutoSaveMachineRoom`** [`machine-room-api.ts:84-127`] — `auditId`/`roomId` could theoretically change between debounce enqueue and `sendNow` execution, sending a payload to the wrong resource; both IDs are stable for a page session in practice; accept for MVP.
+
+---
+
+## Deferred from: code review of 2-3-auto-save-and-session-resume (2026-05-09)
+
+- **`online` event interrupts active debounce, flushing partial typing** [`apps/audit-app/src/features/audit/useAutoSaveSection.ts:158-165`] — minor UX edge; debounce should remain armed if user is actively typing when `online` fires. Low blast radius.
+- **`setTimeout` for saved-fade leaks if fetch resolves post-unmount** [`useAutoSaveSection.ts:97-100`] — React 18 silently ignores setState on unmounted components; closure leaks for ~2 s. Track `mountedRef` if perf becomes a concern.
+- **Clock skew sticks at "<1m ago"** [`OfflineBanner.tsx:34`] — `Math.max(0, ...)` clamps negative diffs. Rare in practice (NTP-synced devices); revisit if reports surface.
+- **OfflineBanner relative-time not memoized / timer-driven** [`OfflineBanner.tsx`] — banner text freezes mid-offline because no `setInterval` ticks the relative-time string. Could add a 30 s tick when `online === false`.
+- **`JSON.stringify` on non-serializable form data fails mid-transaction** [`apps/api/src/repositories/audit.repo.ts:191`] — Zod `z.record(z.unknown())` doesn't deep-validate JSON-safety. Prisma rolls back on application throw, but error surfaces as generic 500. Stringify before opening tx, or stricter Zod schema.
+- **`parseSectionData` silently returns `{}` on malformed JSON with no telemetry** [`apps/api/src/repositories/audit.repo.ts:251-261`] — defensive fallback masks data corruption. Add structured logging when an observability story lands.
+- **`useInProgressDraft` `staleTime: 0` re-fetches on every component mount** [`audit-api.ts:61-69`] — intentional per spec ("fresh check on landing"); revisit if metrics show high HTTP volume.
+- **Empty `{}` PATCH still bumps `audits.updated_at`** [`audit.repo.ts:553-558`] — sub-case of the empty-string patch (P5 in this review). Re-evaluate after P5 lands.
+- **Service tests use shared `fakeTx` whose `withRls` ignores RLS** [`audit.service.test.ts`] — no integration test exercises RLS predicates at the service layer. Future hardening: add a `withRls`-true integration suite when first tenant-leak bug fires.
+- **`useAuditDetail` 30 s refetch may diverge from form state without `reset()`** [`SectionEditPage.tsx`] — server-side update during an active edit doesn't reach the form. Low likelihood while only one auditor edits at a time; revisit alongside Story 3.6 (section locking).
+- **Concurrent two-tab PATCH lost-update on whole-blob upsert** [`apps/api/src/repositories/audit.repo.ts:553-588`] — same auditor with two tabs open on the same section will silently overwrite each other's changes (last-write-wins). Story 3.6 (multi-auditor section locking) owns the broader concurrency story; revisit same-auditor cross-tab there. Could be addressed earlier via an `If-Match`-style `updatedAt` precondition (412 on mismatch).
+
+---
+
+## Deferred from: code review of 3-2-rack-entry-navigation-and-equipment-duplication (2026-05-22)
+
+- **Duplicate button shares one `useMutation` across the whole rack list** [`apps/audit-app/src/features/audit/RackListPage.tsx`] — only a global `mutationPending` disable guards against double/wrong-row fire. Mitigated for now; a per-row guard or `mutationKey` would be more robust against rapid taps.
+- **`rackDesignation` uniqueness within a machine room is prose-only** [`packages/types/src/forms/refrigeration.schema.ts`, `apps/api/src/repositories/rack.repo.ts`] — duplication clears the designation "so the auditor picks a unique name", but nothing enforces it; two racks can both be "A". Add a client/server guard if downstream logic (status chips, reports, calc) keys on designation.
+- **Auto-save hook circular `scheduleDebounced`/`sendNow` stale closure** [`apps/audit-app/src/features/audit/machine-room-api.ts`, `rack-api.ts`] — ESLint exhaustive-deps is effectively suppressed; the trailing-edit flush after a successful save can capture a first-render `scheduleDebounced`. Pre-existing 3.1 pattern, masked by the debounce; low practical impact. Revisit if a missed-save bug surfaces.

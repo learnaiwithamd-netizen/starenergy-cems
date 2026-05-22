@@ -14,10 +14,24 @@ const SECTION_LABELS: Record<SectionId, string> = {
 
 type SectionStatus = 'not-started' | 'in-progress' | 'complete'
 
+function hasMeaningfulContent(data: unknown): boolean {
+  if (data == null || typeof data !== 'object') return false
+  return Object.values(data as Record<string, unknown>).some((v) => {
+    if (v == null) return false
+    if (typeof v === 'string') return v.trim().length > 0
+    if (Array.isArray(v)) return v.length > 0
+    if (typeof v === 'object') return Object.keys(v as object).length > 0
+    return true
+  })
+}
+
 function deriveStatus(section: AuditSectionState | undefined): SectionStatus {
   if (!section) return 'not-started'
   if (section.completedAt) return 'complete'
-  if (section.data && Object.keys(section.data).length > 0) return 'in-progress'
+  // P5 — only count fields with NON-EMPTY values; a section row that was
+  // touched then cleared (or only carries empty-string form defaults)
+  // should return to "Not Started".
+  if (hasMeaningfulContent(section.data)) return 'in-progress'
   return 'not-started'
 }
 
