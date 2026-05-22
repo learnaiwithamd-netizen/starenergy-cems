@@ -99,16 +99,28 @@ export async function getRackById(
  * scoped to a different machine room cannot be written cross-room (same P2
  * guard pattern as `upsertMachineRoomData`). Prisma surfaces a missed
  * predicate as P2025 → `RackNotFoundError`.
+ *
+ * The incoming `data` carries only the sub-key(s) the caller edited (e.g.
+ * `{ general }`). We read the existing blob and SHALLOW-MERGE at the top level
+ * so a save never clobbers other sub-keys (e.g. a future `pipeHeaders` from
+ * Story 3.3). Each sub-object is sent whole, so a top-level merge is correct.
  */
 export async function upsertRackData(
   tx: PrismaLike,
   input: UpsertRackDataInput,
 ): Promise<{ savedAt: string; rackId: string }> {
+  const existing = await tx.rack.findFirst({
+    where: { id: input.id, machineRoomId: input.machineRoomId },
+    select: { data: true },
+  })
+  if (!existing) throw new RackNotFoundError()
+  const mergedData = { ...parseData(existing.data as string), ...input.data }
+
   let updated: { updatedAt: Date }
   try {
     updated = await tx.rack.update({
       where: { id: input.id, machineRoomId: input.machineRoomId },
-      data: { data: JSON.stringify(input.data) },
+      data: { data: JSON.stringify(mergedData) },
       select: { updatedAt: true },
     })
   } catch (err: unknown) {

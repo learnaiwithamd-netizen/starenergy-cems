@@ -16,6 +16,9 @@ import { AutoSaveIndicator } from './AutoSaveIndicator'
 import { OfflineBanner } from './OfflineBanner'
 import { useMachineRooms } from './machine-room-api'
 import { useRack, useAutoSaveRack } from './rack-api'
+import { ApiError } from '../../lib/api-client'
+
+const str = (v: unknown): string => (v == null ? '' : String(v))
 
 interface RackGeneralFormValues {
   rackDesignation: string
@@ -37,13 +40,16 @@ export function RackGeneralPage(): JSX.Element {
   const roomId = machineRoomsQ.data?.machineRooms[0]?.id ?? null
   const rackQ = useRack(auditId ?? null, roomId, rackId ?? null)
   const autoSave = useAutoSaveRack(auditId ?? null, roomId, rackId ?? null)
+  // `save` is a stable useCallback; destructuring lets the auto-save effect
+  // depend on it directly without re-subscribing on every save-state change.
+  const { save: saveRack } = autoSave
 
   const {
     control,
     handleSubmit,
     watch,
     getValues,
-    setValue,
+    reset,
     formState: { errors },
   } = useForm<RackGeneralFormValues>({
     mode: 'onSubmit',
@@ -59,27 +65,34 @@ export function RackGeneralPage(): JSX.Element {
     },
   })
 
-  // Hydrate form from saved rack data once it loads
+  // Hydrate the form from saved rack data. `reset` (vs per-field setValue) also
+  // CLEARS stale fields, so navigating between racks — or to a freshly
+  // duplicated rack whose `general` lacks some keys — never bleeds the previous
+  // rack's values into the new one. Keyed on rackId + the loaded data.
   useEffect(() => {
-    const general = rackQ.data?.data?.['general'] as Record<string, unknown> | undefined
-    if (!general) return
-    if (general['rackDesignation']) setValue('rackDesignation', String(general['rackDesignation']))
-    if (general['rackType']) setValue('rackType', String(general['rackType']))
-    if (general['rackMake']) setValue('rackMake', String(general['rackMake']))
-    if (general['rackModelSerial']) setValue('rackModelSerial', String(general['rackModelSerial']))
-    if (general['ageYear']) setValue('ageYear', String(general['ageYear']))
-    if (general['lastRetrofitYear']) setValue('lastRetrofitYear', String(general['lastRetrofitYear']))
-    if (general['refrigerant']) setValue('refrigerant', String(general['refrigerant']))
-    if (general['comment']) setValue('comment', String(general['comment']))
-  }, [rackQ.data, setValue])
+    if (!rackQ.data) return
+    const general = (rackQ.data.data?.['general'] ?? {}) as Record<string, unknown>
+    reset({
+      rackDesignation: str(general['rackDesignation']),
+      rackType: str(general['rackType']),
+      rackMake: str(general['rackMake']),
+      rackModelSerial: str(general['rackModelSerial']),
+      ageYear: str(general['ageYear']),
+      lastRetrofitYear: str(general['lastRetrofitYear']),
+      refrigerant: str(general['refrigerant']),
+      comment: str(general['comment']),
+    })
+  }, [rackId, rackQ.data, reset])
 
-  // Auto-save on any field change
+  // Auto-save on any field change. Depend on the STABLE `saveRack` (a
+  // useCallback) rather than the `autoSave` object, whose identity changes on
+  // every save-state transition and would needlessly churn this subscription.
   useEffect(() => {
     const subscription = watch(() => {
-      autoSave.save({ general: getValues() })
+      saveRack({ general: getValues() })
     })
     return () => subscription.unsubscribe()
-  }, [watch, getValues, autoSave])
+  }, [watch, getValues, saveRack])
 
   const onInvalid: SubmitErrorHandler<RackGeneralFormValues> = () => {
     setAttempted(true)
@@ -87,7 +100,7 @@ export function RackGeneralPage(): JSX.Element {
 
   const onValid = () => {
     autoSave.flush()
-    void navigate(`/audit/${auditId}/section/refrigeration/rack/${rackId}/pipe-headers`)
+    void navigate(`/audit/${auditId}/section/refrigeration/rack/${rackId}/compressors`)
   }
 
   const designationError = attempted && !!errors.rackDesignation
@@ -101,6 +114,12 @@ export function RackGeneralPage(): JSX.Element {
         <Skeleton className="h-12 w-full" />
       </div>
     )
+  }
+
+  // A 404 means the rack doesn't exist (stale/foreign id, or deleted) — route
+  // back to the rack list rather than dead-ending on an error alert.
+  if (rackQ.isError && rackQ.error instanceof ApiError && rackQ.error.status === 404) {
+    return <Navigate to={`/audit/${auditId}/section/refrigeration/racks`} replace />
   }
 
   if (machineRoomsQ.isError || rackQ.isError) {

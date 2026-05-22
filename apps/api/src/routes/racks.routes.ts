@@ -56,10 +56,10 @@ export function registerRacksRoutes(app: FastifyInstance): void {
   app.get(
     '/api/v1/audits/:auditId/machine-rooms/:roomId/racks',
     {
-      preHandler: requireRole([UserRole.AUDITOR, UserRole.ADMIN, UserRole.CLIENT]),
+      preHandler: requireRole([UserRole.AUDITOR, UserRole.ADMIN]),
       schema: fastifySchemaFromZod({
         tags: ['racks'],
-        summary: 'List racks for a machine room. Any authenticated role. Story 3.2.',
+        summary: 'List racks for a machine room. AUDITOR + ADMIN only (not part of the client surface). Story 3.2.',
         params: racksParamsSchema,
         response: {
           200: listRacksResponseSchema,
@@ -80,10 +80,10 @@ export function registerRacksRoutes(app: FastifyInstance): void {
   app.get(
     '/api/v1/audits/:auditId/machine-rooms/:roomId/racks/:rackId',
     {
-      preHandler: requireRole([UserRole.AUDITOR, UserRole.ADMIN, UserRole.CLIENT]),
+      preHandler: requireRole([UserRole.AUDITOR, UserRole.ADMIN]),
       schema: fastifySchemaFromZod({
         tags: ['racks'],
-        summary: 'Get a single rack. Any authenticated role. Story 3.2.',
+        summary: 'Get a single rack. AUDITOR + ADMIN only (not part of the client surface). Story 3.2.',
         params: patchRackParamsSchema,
         response: {
           200: getRackResponseSchema,

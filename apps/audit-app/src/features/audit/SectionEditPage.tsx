@@ -21,7 +21,6 @@ const SECTION_LABELS: Record<SectionId, string> = {
 }
 
 const COMING_SOON_BY_SECTION: Partial<Record<SectionId, string>> = {
-  refrigeration: 'Refrigeration data collection arrives in Story 3.x.',
   hvac: 'HVAC section forms arrive in Story 5.2.',
   lighting: 'Lighting section forms arrive in Story 5.3.',
   'building-envelope': 'Building Envelope section forms arrive in Story 5.3.',
@@ -56,7 +55,10 @@ function SectionEditView({
 
   return (
     <>
-      <OfflineBanner lastSavedAt={autoSave.lastSavedAt} />
+      <OfflineBanner
+        lastSavedAt={autoSave.lastSavedAt}
+        perceivedOffline={autoSave.perceivedOffline}
+      />
       <section aria-labelledby="section-edit-heading">
         <nav aria-label="breadcrumb" className="mb-4 text-sm text-muted">
           <Link to={`/audit/${auditId}`} className="underline">

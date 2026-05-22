@@ -75,9 +75,10 @@ function renderPage(route = '/audit/audit-abc/section/refrigeration/rack/rack-1/
         <Routes>
           <Route path="/audit/:auditId/section/refrigeration/rack/:rackId/general" element={<RackGeneralPage />} />
           <Route
-            path="/audit/:auditId/section/refrigeration/rack/:rackId/pipe-headers"
-            element={<div data-testid="pipe-headers-stub" />}
+            path="/audit/:auditId/section/refrigeration/rack/:rackId/compressors"
+            element={<div data-testid="compressors-stub" />}
           />
+          <Route path="/audit/:auditId/section/refrigeration/racks" element={<div data-testid="racks-page" />} />
           <Route path="/audit/:auditId/section/refrigeration" element={<div data-testid="general-page" />} />
           <Route path="/audit/:auditId" element={<div data-testid="overview-page" />} />
         </Routes>
@@ -98,6 +99,12 @@ describe('RackGeneralPage', () => {
     renderPage()
     await screen.findByRole('alert')
     expect(screen.getByRole('alert').textContent).toContain('Could not load rack')
+  })
+
+  it('redirects to the rack list when the rack 404s', async () => {
+    routeFetch({ rack: () => jsonResponse({ detail: 'gone' }, 404) })
+    renderPage()
+    await screen.findByTestId('racks-page')
   })
 
   it('renders all rack general form fields', async () => {
@@ -123,10 +130,10 @@ describe('RackGeneralPage', () => {
     await waitFor(() => {
       expect(screen.getByTestId('next-btn').textContent).toContain('required field')
     })
-    expect(screen.queryByTestId('pipe-headers-stub')).toBeNull()
+    expect(screen.queryByTestId('compressors-stub')).toBeNull()
   })
 
-  it('valid form navigates to the pipe-headers stub', async () => {
+  it('valid form navigates to the compressors list', async () => {
     routeFetch({})
     const user = userEvent.setup()
     renderPage()
@@ -136,7 +143,7 @@ describe('RackGeneralPage', () => {
     await user.click(await screen.findByRole('option', { name: 'A' }))
     await user.click(screen.getByTestId('next-btn'))
 
-    await screen.findByTestId('pipe-headers-stub')
+    await screen.findByTestId('compressors-stub')
   })
 
   it('hydrates the form from saved rack data', async () => {

@@ -1,6 +1,6 @@
 # Story 3.2: Rack Entry, Navigation & Equipment Duplication
 
-Status: review
+Status: done
 
 ## Story
 
@@ -530,3 +530,32 @@ All 15 ACs satisfied. Touch targets use `min-h-[48px]`; redirects to the General
 |------------|--------|
 | 2026-05-16 | Story created via create-story from Epic 3A Machine Room + Epic 3B Refrigeration Rack + epic-03-refrigeration-data-collection-core-audit-engine.md |
 | 2026-05-17 | Implemented Story 3.2 — Machine Room Exhaust screen, Rack entity API (CRUD + duplicate), Rack List + Rack General SPA screens, App.tsx routing. All 15 ACs satisfied; 64 new tests added. |
+| 2026-05-22 | Code review (3-layer adversarial: Blind Hunter + Edge Case Hunter + Acceptance Auditor) against branch `feat/epic-3-...` @ 32556dd. 3 decision-needed, 6 patch, 3 deferred, 3 dismissed. See Review Findings. |
+| 2026-05-23 | Applied all 9 review patches: server-side deep-merge in `upsert*Data` (no sub-key clobber), P2002 retry in a fresh transaction (rack + machine-room services), GET endpoints restricted to AUDITOR+ADMIN, room↔audit linkage on all rack ops, RackGeneralPage form `reset()` on rackId change, `Number.isFinite` set-point guards, stable `save` auto-save deps, rack-404 redirect, RackList axe scan. type-check + my files' lint clean; API 388 tests pass; all patched SPA pages pass. Status → done. |
+
+## Review Findings
+
+_Code review 2026-05-22 — diff: branch `feat/epic-3-refrigeration-machine-room-and-racks` @ `32556dd` vs `main`. Acceptance Auditor confirmed all 15 ACs met; the items below are robustness/correctness findings (some span the Story 3.1 machine-room code committed on the same branch)._
+
+**Decision-needed** (resolved 2026-05-22 — now patches):
+
+- [x] [Review][Patch] **(was Decision)** Auto-save full-overwrites the `data` JSON blob — sibling sub-keys are silently lost. Root cause `machine-room.repo.ts`/`rack.repo.ts` `upsert*Data` do `data: JSON.stringify(input.data)` (replace, not merge). Forward nav General→Ventilation→Exhaust destroys `general`/`ventilation`. (blind+edge, High) — **RESOLVED: server-side deep-merge** in the two `upsert*Data` repos (read-merge-write in the same tx). Removes the need for client-side merge/cache-invalidation; the Exhaust page's manual spread can stay or be simplified.
+- [x] [Review][Patch] **(was Decision)** P2002 retry executes inside the same (aborted) Prisma interactive transaction — `rack.service.ts` `createRack`/`duplicateRack`, `machine-room.service.ts` `getOrCreateMachineRoom`. (blind+edge, High) — **RESOLVED: retry in a fresh `withRls` transaction** after catching P2002; also fix `getOrCreateMachineRoom`'s raw-P2002 re-throw on empty re-read.
+- [x] [Review][Patch] **(was Decision)** Machine-room/rack GET endpoints are reachable by CLIENT (tenant-only scoping, no `assignedStoreIds` filter). (blind, Medium) — **RESOLVED: restrict GETs to AUDITOR+ADMIN** — the auditor-app rack/machine-room endpoints are not part of the client surface. Remove `UserRole.CLIENT` from the GET role guards.
+
+**Patch** (unambiguous fixes):
+
+- [x] [Review][Patch] Reads don't verify the room↔audit linkage — `auditId` is accepted but unused in `rack.service.ts` `getRacks`/`getRackById` (only rack↔room is checked). A caller can pair a foreign-audit `machineRoomId` with its real rack id. [`apps/api/src/services/rack.service.ts`]
+- [x] [Review][Patch] `RackGeneralPage` form is not reset on `rackId` change — navigating rack A→B (or to a freshly-duplicated rack) reuses the component instance; the hydrate effect only sets truthy keys and never clears, so prior values bleed into and auto-save onto the new rack. [`apps/audit-app/src/features/audit/RackGeneralPage.tsx`]
+- [x] [Review][Patch] Set-point coercion can persist `NaN` — `values.setPoint ? Number(values.setPoint) : undefined` lets non-numeric intermediate input (`"5e"`, `"-"`) become `NaN`→`null`. Guard with `Number.isFinite`. [`MachineRoomVentilationPage.tsx`, `MachineRoomExhaustPage.tsx` `buildExhaustPayload`]
+- [x] [Review][Patch] Auto-save `useEffect` depends on the unstable `autoSave` object — it churns the `watch` subscription on every save-state transition (idle/saving/saved), widening the window for missed change events. Depend on the stable `autoSave.save` instead. [all four MR/Rack form pages]
+- [x] [Review][Patch] Rack-not-found dead-ends on the error alert — a direct URL with a stale/foreign `rackId` shows "Could not load rack" with no path back into the flow; redirect to `…/racks` (or General) on `rackQ` 404. [`apps/audit-app/src/features/audit/RackGeneralPage.tsx`]
+- [x] [Review][Patch] Missing route-level a11y coverage — new routes (exhaust/racks/rack-general) have no axe assertion in `App.test.tsx` (CLAUDE.md gate), and `RackListPage.test.tsx` omits the axe scan every peer page test includes. [`apps/audit-app/src/App.test.tsx`, `RackListPage.test.tsx`]
+
+**Deferred** (real but not actionable now):
+
+- [x] [Review][Defer] Duplicate button uses one shared `useMutation` for the whole list with only a global `mutationPending` guard — deferred, mitigated by the global disable; per-row guard/`mutationKey` is a hardening nice-to-have. [`RackListPage.tsx`]
+- [x] [Review][Defer] `rackDesignation` uniqueness within a machine room is enforced only in prose, not by schema/API/UI — deferred, not specified as hard-enforced; revisit if downstream (reports/calc) keys on designation. [`refrigeration.schema.ts`, `rack.repo.ts`]
+- [x] [Review][Defer] Auto-save hook circular `scheduleDebounced`/`sendNow` closure (ESLint exhaustive-deps suppressed) — deferred, pre-existing 3.1 pattern, masked by debounce; low practical impact. [`machine-room-api.ts`, `rack-api.ts`]
+
+**Dismissed:** route ordering in `RackGeneralPage` guards (false positive); Exhaust `controlBy: 'None'` on Natural (intended per AC2); "numeric" exhaust fields stored as strings (matches the spec's own `mrExhaustDataSchema`).

@@ -16,9 +16,16 @@ describe('AutoSaveIndicator', () => {
     expect(region.textContent).toBe('')
   })
 
-  it('shows ✓ Saved in saved state', () => {
+  it('shows ✓ Saved in saved state (P11: ✓ aria-hidden)', () => {
     render(<AutoSaveIndicator state="saved" />)
-    expect(screen.getByText('✓ Saved')).toBeInTheDocument()
+    expect(screen.getByText(/Saved/)).toBeInTheDocument()
+    // ✓ is decorative — visually-only, aria-hidden so screen readers say "Saved".
+    expect(screen.getByText('✓ ')).toHaveAttribute('aria-hidden', 'true')
+  })
+
+  it('shows Save failed — please reload in error-terminal state (P4)', () => {
+    render(<AutoSaveIndicator state="error-terminal" />)
+    expect(screen.getByText('Save failed — please reload')).toBeInTheDocument()
   })
 
   it('shows Save failed — retrying in error state', () => {

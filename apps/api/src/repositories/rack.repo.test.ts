@@ -107,8 +107,9 @@ describe('rack.repo', () => {
 
   describe('upsertRackData', () => {
     it('updates rack data with machineRoomId in WHERE (cross-room guard)', async () => {
+      const findFirst = vi.fn(async () => ({ data: '{}' }))
       const update = vi.fn<(arg: AnyArg) => Promise<unknown>>(async () => ({ updatedAt: now }))
-      const tx = { rack: { update } }
+      const tx = { rack: { findFirst, update } }
 
       const result = await upsertRackData(tx, {
         id: 'rack-1',
@@ -124,9 +125,28 @@ describe('rack.repo', () => {
       })
     })
 
-    it('handles empty data object', async () => {
+    it('shallow-merges the incoming sub-key with existing data (no clobber)', async () => {
+      const findFirst = vi.fn(async () => ({ data: JSON.stringify({ pipeHeaders: { count: 2 } }) }))
       const update = vi.fn<(arg: AnyArg) => Promise<unknown>>(async () => ({ updatedAt: now }))
-      const tx = { rack: { update } }
+      const tx = { rack: { findFirst, update } }
+
+      await upsertRackData(tx, {
+        id: 'rack-1',
+        machineRoomId: 'mr-1',
+        tenantId: 'tenant-a',
+        data: { general: { rackDesignation: 'A' } },
+      })
+
+      const written = JSON.parse(
+        (update.mock.calls[0]![0] as { data: { data: string } }).data.data,
+      ) as Record<string, unknown>
+      expect(written).toEqual({ pipeHeaders: { count: 2 }, general: { rackDesignation: 'A' } })
+    })
+
+    it('handles empty data object', async () => {
+      const findFirst = vi.fn(async () => ({ data: '{}' }))
+      const update = vi.fn<(arg: AnyArg) => Promise<unknown>>(async () => ({ updatedAt: now }))
+      const tx = { rack: { findFirst, update } }
 
       const result = await upsertRackData(tx, {
         id: 'rack-1',
@@ -139,10 +159,20 @@ describe('rack.repo', () => {
       expect(result.rackId).toBe('rack-1')
     })
 
+    it('throws RackNotFoundError when the rack is missing (read returns null)', async () => {
+      const findFirst = vi.fn(async () => null)
+      const tx = { rack: { findFirst, update: vi.fn() } }
+
+      await expect(
+        upsertRackData(tx, { id: 'missing', machineRoomId: 'mr-1', tenantId: 'tenant-a', data: {} }),
+      ).rejects.toBeInstanceOf(RackNotFoundError)
+    })
+
     it('throws RackNotFoundError on P2025', async () => {
       const p2025 = Object.assign(new Error('Record not found'), { code: 'P2025' })
+      const findFirst = vi.fn(async () => ({ data: '{}' }))
       const update = vi.fn(async () => { throw p2025 })
-      const tx = { rack: { update } }
+      const tx = { rack: { findFirst, update } }
 
       await expect(
         upsertRackData(tx, { id: 'missing', machineRoomId: 'mr-1', tenantId: 'tenant-a', data: {} }),

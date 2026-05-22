@@ -1,7 +1,14 @@
 import type { JSX } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Button, Skeleton } from '@cems/ui'
+import { ApiError } from '../../lib/api-client'
 import { useStoreDetail, useCreateAudit } from './audit-api'
+
+interface DraftExistsProblem {
+  type: string
+  existingAuditId?: string
+  existingStoreId?: string
+}
 
 
 export function AuditNewPage(): JSX.Element {
@@ -80,11 +87,58 @@ export function AuditNewPage(): JSX.Element {
         </dl>
       )}
 
-      {createAudit.isError && (
-        <p role="alert" className="mt-4 text-sm text-danger">
-          Failed to create audit — please try again.
-        </p>
-      )}
+      {createAudit.isError && (() => {
+        const err = createAudit.error
+        const problem =
+          err instanceof ApiError ? (err.problem as DraftExistsProblem) : null
+        const isDraftExists =
+          problem?.type === 'https://cems.starenergy.ca/errors/draft-already-exists' &&
+          problem.existingAuditId
+        const isStoreNotAssigned =
+          err instanceof ApiError &&
+          err.status === 403 &&
+          (err.problem as { type?: string }).type ===
+            'https://cems.starenergy.ca/errors/store-not-assigned'
+
+        if (isDraftExists) {
+          return (
+            <div
+              role="alert"
+              className="mt-4 rounded border border-warning bg-warning/10 p-3 text-sm"
+              data-testid="draft-exists-alert"
+            >
+              <p className="font-medium text-warning">
+                You already have an in-progress audit.
+              </p>
+              <p className="mt-1">
+                Finish or contact your administrator to reassign it before starting a new one.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                className="mt-3"
+                onClick={() => navigate(`/audit/${problem.existingAuditId}`)}
+              >
+                Open existing draft
+              </Button>
+            </div>
+          )
+        }
+
+        if (isStoreNotAssigned) {
+          return (
+            <p role="alert" className="mt-4 text-sm text-danger">
+              This store is not assigned to you. Please go back and choose an assigned store.
+            </p>
+          )
+        }
+
+        return (
+          <p role="alert" className="mt-4 text-sm text-danger">
+            Failed to create audit — please try again.
+          </p>
+        )
+      })()}
 
       <div className="mt-8 flex gap-3">
         <Button

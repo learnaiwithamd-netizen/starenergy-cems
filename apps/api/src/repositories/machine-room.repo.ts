@@ -101,18 +101,31 @@ export async function getMachineRoomById(
 
 /**
  * Write machine room data and keep the refrigeration section cursor in sync.
- * Four writes happen inside the same RLS transaction (atomicity guaranteed by
+ * Several writes happen inside the same RLS transaction (atomicity guaranteed by
  * withRls wrapping these calls in a single Prisma interactive transaction).
+ *
+ * The incoming `data` carries only the sub-key(s) the caller edited (e.g.
+ * `{ general }` or `{ ventilation }`). We read the existing blob and SHALLOW-MERGE
+ * at the top level so a save from one screen never clobbers the sub-keys written
+ * by sibling screens (General / Ventilation / Exhaust). Each sub-object is sent
+ * whole, so a top-level merge is the correct granularity.
  */
 export async function upsertMachineRoomData(
   tx: PrismaLike,
   input: UpsertMachineRoomDataInput,
 ): Promise<{ savedAt: string; roomId: string }> {
+  const existing = await tx.machineRoom.findFirst({
+    where: { id: input.id, auditId: input.auditId },
+    select: { data: true },
+  })
+  if (!existing) throw new MachineRoomNotFoundError()
+  const mergedData = { ...parseData(existing.data), ...input.data }
+
   let updated: { updatedAt: Date }
   try {
     updated = await tx.machineRoom.update({
       where: { id: input.id, auditId: input.auditId },
-      data: { data: JSON.stringify(input.data) },
+      data: { data: JSON.stringify(mergedData) },
       select: { updatedAt: true },
     })
   } catch (err: unknown) {

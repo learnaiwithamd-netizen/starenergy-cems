@@ -11,11 +11,16 @@ import {
   type PatchAuditSectionResponse,
 } from '@cems/types'
 import { RoleNotPermittedError } from '../lib/auth-errors.js'
-import { AuditNotEditableError, AuditNotFoundError, StoreNotFoundError } from '../lib/audit-errors.js'
+import {
+  AuditNotFoundError,
+  DraftAlreadyExistsError,
+  StoreNotAssignedError,
+  StoreNotFoundError,
+} from '../lib/audit-errors.js'
 import {
   createAudit,
+  findActiveDraftForAuditor,
   getAuditById,
-  getAuditOwnership,
   getLatestCompressorDbVersion,
   listAuditsForCaller as listAuditsRepo,
   upsertAuditSection,
@@ -31,6 +36,15 @@ export interface ServiceContext {
 
 /**
  * Creates a DRAFT audit for an AUDITOR caller. Rejects any other role with 403.
+ *
+ * Story 2.3 patches:
+ * - **P15** AUDITOR may only start an audit on a store in their
+ *   `assignedStoreIds` (least-privilege, matches Store Selector UX).
+ * - **P16** AUDITOR is limited to one DRAFT at a time; a second create
+ *   raises `DraftAlreadyExistsError` (409 with the existing draft's
+ *   id + storeId). Site-switch mid-draft requires admin reassignment
+ *   (future story).
+ *
  * `clientId` mirrors `tenantId` until a multi-client model is introduced.
  * `compressorDbVersion` is resolved from the latest row in compressor_refs
  * (falls back to "1.0" when the table is empty, e.g. in dev seeding).
@@ -43,7 +57,16 @@ export async function createAuditDraft(
   if (!rls) throw new Error('createAuditDraft requires an authenticated request')
   if (rls.role !== UserRole.AUDITOR) throw new RoleNotPermittedError()
 
+  const assignedStoreIds = rls.assignedStoreIds ?? []
+  if (!assignedStoreIds.includes(body.storeId)) {
+    throw new StoreNotAssignedError()
+  }
+
   return ctx.request.withRls(async (tx) => {
+    const existing = await findActiveDraftForAuditor(tx, rls.userId)
+    if (existing) {
+      throw new DraftAlreadyExistsError(existing.id, existing.storeId)
+    }
     const storeExists = await tx.storeRef.findUnique({ where: { id: body.storeId }, select: { id: true } })
     if (!storeExists) throw new StoreNotFoundError()
     const compressorDbVersion = await getLatestCompressorDbVersion(tx)
@@ -59,11 +82,10 @@ export async function createAuditDraft(
 }
 
 /**
- * Auto-save a section's form data (Story 2.3). AUDITOR-only. The caller
- * must own the audit (auditorUserId match) and the audit must still be
- * DRAFT. Any of those three checks failing throws `AuditNotEditableError`
- * with a uniform message — we don't distinguish reasons to avoid leaking
- * existence/ownership signals.
+ * Auto-save a section's form data (Story 2.3). AUDITOR-only. Ownership +
+ * DRAFT-status are enforced atomically in the repo's `audit.update`
+ * where-clause (Story 2.3 P2 fix) — Prisma returns P2025 → repo wraps
+ * as `AuditNotEditableError` (uniform 404, no existence leak).
  */
 export async function patchAuditSection(
   params: PatchAuditSectionParams,
@@ -75,18 +97,10 @@ export async function patchAuditSection(
   if (rls.role !== UserRole.AUDITOR) throw new RoleNotPermittedError()
 
   return ctx.request.withRls(async (tx) => {
-    const ownership = await getAuditOwnership(tx, params.id)
-    if (
-      !ownership ||
-      ownership.auditorUserId !== rls.userId ||
-      ownership.status !== AuditStatus.DRAFT
-    ) {
-      throw new AuditNotEditableError()
-    }
-
     const { savedAt } = await upsertAuditSection(tx, {
       tenantId: rls.tenantId,
       auditId: params.id,
+      auditorUserId: rls.userId,
       sectionId: params.sectionId,
       data: body.data,
     })
@@ -96,8 +110,13 @@ export async function patchAuditSection(
 
 /**
  * Returns the full audit detail (incl. all section rows) for a single
- * audit. Auth-required for any role; Azure SQL RLS does the visibility
- * scoping (tenant + CLIENT-store gating). Null repo result → 404.
+ * audit. Azure SQL RLS scopes visibility by tenant + CLIENT-store gating,
+ * but does NOT auto-filter audits by authoring auditor. So for an AUDITOR
+ * caller, the service additionally asserts the caller owns the audit
+ * (Story 2.3 P14 fix — closes cross-auditor info disclosure within tenant).
+ *
+ * Null repo result OR an AUDITOR caller viewing a peer's audit both
+ * surface as `AuditNotFoundError` (uniform 404, no existence leak).
  */
 export async function getAuditDetail(
   auditId: string,
@@ -108,6 +127,9 @@ export async function getAuditDetail(
 
   const detail = await ctx.request.withRls((tx) => getAuditById(tx, auditId))
   if (!detail) throw new AuditNotFoundError()
+  if (rls.role === UserRole.AUDITOR && detail.auditorUserId !== rls.userId) {
+    throw new AuditNotFoundError()
+  }
   return detail
 }
 

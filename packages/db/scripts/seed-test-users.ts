@@ -4,8 +4,11 @@
  *   2. Three test users (Admin, Auditor, Client) into the `tenant-dev` tenant
  *   3. The seeded Auditor's assignedStoreIds = first 2 store IDs
  *      The seeded Client's  assignedStoreIds = first 2 store IDs
+ *   4. Sample compressor_refs (Story 3.3) — GLOBAL regression-DB rows so the
+ *      compressor model-lookup auto-populate path is exercisable locally.
  *
- * Hard-fails in production. Idempotent via prisma.user.upsert + storeRef.upsert.
+ * Hard-fails in production. Idempotent via prisma.user.upsert + storeRef.upsert
+ * + compressorRef.upsert.
  *
  * Run via:    pnpm --filter @cems/db db:seed:test-users
  */
@@ -36,6 +39,18 @@ const SEED_USERS = [
   { email: 'admin@cems.local',   name: 'Dev Admin',   role: 'ADMIN',   storeAssignmentCount: 0 },
   { email: 'auditor@cems.local', name: 'Dev Auditor', role: 'AUDITOR', storeAssignmentCount: 2 },
   { email: 'client@cems.local',  name: 'Dev Client',  role: 'CLIENT',  storeAssignmentCount: 2 },
+] as const
+
+const COMPRESSOR_DB_VERSION = '1.0'
+
+// GLOBAL reference data (no tenant). regression_coefficients carries nominal
+// capacity (BTU/h) + EER for the SPA auto-populate path; the `coefficients`
+// array is a placeholder — the real regression math lands in Epic 8.
+const SEED_COMPRESSOR_REFS = [
+  { modelNumber: 'ZB45KCE-TFD', manufacturer: 'Copeland', refrigerantType: 'R-404A', regressionCoefficients: { capacity: '45000', eer: '11.2', coefficients: [0.92, -0.013, 0.0007] } },
+  { modelNumber: 'ZF18K4E-TFD', manufacturer: 'Copeland', refrigerantType: 'R-448A', regressionCoefficients: { capacity: '18000', eer: '9.8', coefficients: [0.88, -0.011, 0.0006] } },
+  { modelNumber: '4DES-7Y',     manufacturer: 'Bitzer',   refrigerantType: 'R-448A', regressionCoefficients: { capacity: '62000', eer: '12.1', coefficients: [0.95, -0.014, 0.0008] } },
+  { modelNumber: 'D4DA3-1000',  manufacturer: 'Carlyle',  refrigerantType: 'R-22',   regressionCoefficients: { capacity: '100000', eer: '10.4', coefficients: [0.9, -0.012, 0.0007] } },
 ] as const
 
 async function main() {
@@ -110,12 +125,40 @@ async function main() {
     )
   }
 
+  // 3. Upsert sample compressor_refs (GLOBAL — no tenant; Story 3.3).
+  for (const c of SEED_COMPRESSOR_REFS) {
+    await prisma.compressorRef.upsert({
+      where: {
+        compressorDbVersion_modelNumber: {
+          compressorDbVersion: COMPRESSOR_DB_VERSION,
+          modelNumber: c.modelNumber,
+        },
+      },
+      update: {
+        manufacturer: c.manufacturer,
+        refrigerantType: c.refrigerantType,
+        regressionCoefficients: JSON.stringify(c.regressionCoefficients),
+      },
+      create: {
+        compressorDbVersion: COMPRESSOR_DB_VERSION,
+        modelNumber: c.modelNumber,
+        manufacturer: c.manufacturer,
+        refrigerantType: c.refrigerantType,
+        regressionCoefficients: JSON.stringify(c.regressionCoefficients),
+      },
+    })
+    // eslint-disable-next-line no-console
+    console.log(`✓ COMPRESSOR ${c.modelNumber.padEnd(14)} (${c.manufacturer})`)
+  }
+
   // eslint-disable-next-line no-console
   console.log(`\nDefault password for all seeded users: ${DEFAULT_PASSWORD}`)
   // eslint-disable-next-line no-console
   console.log(`Tenant: ${TENANT}`)
   // eslint-disable-next-line no-console
   console.log(`Sample stores: ${SEED_STORES.length} (Auditor + Client assigned to first 2)`)
+  // eslint-disable-next-line no-console
+  console.log(`Sample compressor_refs: ${SEED_COMPRESSOR_REFS.length} (db version ${COMPRESSOR_DB_VERSION})`)
 
   await prisma.$disconnect()
 }

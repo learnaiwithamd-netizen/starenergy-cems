@@ -35,6 +35,9 @@ export function MachineRoomGeneralPage(): JSX.Element {
 
   const getOrCreate = useGetOrCreateMachineRoom()
   const autoSave = useAutoSaveMachineRoom(auditId ?? null, roomId)
+  // `save` is a stable useCallback; destructure so the auto-save effect can
+  // depend on it without re-subscribing on every save-state transition.
+  const { save: saveRoom } = autoSave
 
   const {
     control,
@@ -92,13 +95,15 @@ export function MachineRoomGeneralPage(): JSX.Element {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auditId])
 
-  // Auto-save on any field change
+  // Auto-save on any field change. Sends only the `general` sub-key — the repo
+  // top-level-merges it, preserving `ventilation` / `exhaust` server-side.
+  // Depend on the stable `autoSave.save`, not the churning `autoSave` object.
   useEffect(() => {
     const subscription = watch(() => {
-      autoSave.save({ general: getValues() })
+      saveRoom({ general: getValues() })
     })
     return () => subscription.unsubscribe()
-  }, [watch, getValues, autoSave])
+  }, [watch, getValues, saveRoom])
 
   const onInvalid: SubmitErrorHandler<GeneralFormValues> = () => {
     setAttempted(true)

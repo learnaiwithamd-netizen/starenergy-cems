@@ -1,10 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuditStatus, UserRole } from '@cems/types'
 
-const { fakeTx, auditRepoMock, rackRepoMock } = vi.hoisted(() => ({
+const { fakeTx, auditRepoMock, machineRoomRepoMock, rackRepoMock } = vi.hoisted(() => ({
   fakeTx: {},
   auditRepoMock: {
     getAuditOwnership: vi.fn(),
+  },
+  machineRoomRepoMock: {
+    getMachineRoomById: vi.fn(),
   },
   rackRepoMock: {
     createRack: vi.fn(),
@@ -16,10 +19,11 @@ const { fakeTx, auditRepoMock, rackRepoMock } = vi.hoisted(() => ({
 }))
 
 vi.mock('../repositories/audit.repo.js', () => auditRepoMock)
+vi.mock('../repositories/machine-room.repo.js', () => machineRoomRepoMock)
 vi.mock('../repositories/rack.repo.js', () => rackRepoMock)
 
 import { createRack, getRacks, getRackById, patchRack, duplicateRack } from './rack.service.js'
-import { AuditNotEditableError, RackNotFoundError } from '../lib/audit-errors.js'
+import { AuditNotEditableError, MachineRoomNotFoundError, RackNotFoundError } from '../lib/audit-errors.js'
 
 interface FakeRequest {
   rlsContext: {
@@ -40,6 +44,16 @@ function fakeRequest(role: UserRole, userId = 'user-1'): FakeRequest {
 
 const fakeDraftOwnership = { auditorUserId: 'user-1', status: AuditStatus.DRAFT }
 
+const fakeRoom = {
+  id: 'mr-1',
+  tenantId: 'tenant-a',
+  auditId: 'audit-1',
+  roomNumber: '1',
+  data: {},
+  createdAt: '2026-05-16T10:00:00.000Z',
+  updatedAt: '2026-05-16T10:00:00.000Z',
+}
+
 const fakeRack = {
   id: 'rack-1',
   tenantId: 'tenant-a',
@@ -56,6 +70,8 @@ const asReq = (r: FakeRequest) => ({ request: r as any })
 describe('rack.service', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // Default: the room exists and belongs to audit-1 (room↔audit linkage passes).
+    machineRoomRepoMock.getMachineRoomById.mockResolvedValue(fakeRoom)
   })
 
   describe('createRack', () => {
@@ -87,7 +103,15 @@ describe('rack.service', () => {
       ).rejects.toBeInstanceOf(AuditNotEditableError)
     })
 
-    it('retries once with re-derived rackNumber on P2002', async () => {
+    it('throws MachineRoomNotFoundError when the room is not in the audit', async () => {
+      auditRepoMock.getAuditOwnership.mockResolvedValue(fakeDraftOwnership)
+      machineRoomRepoMock.getMachineRoomById.mockResolvedValue({ ...fakeRoom, auditId: 'other-audit' })
+      await expect(
+        createRack({ machineRoomId: 'mr-1', auditId: 'audit-1' }, asReq(fakeRequest(UserRole.AUDITOR))),
+      ).rejects.toBeInstanceOf(MachineRoomNotFoundError)
+    })
+
+    it('retries once in a fresh transaction with re-derived rackNumber on P2002', async () => {
       auditRepoMock.getAuditOwnership.mockResolvedValue(fakeDraftOwnership)
       rackRepoMock.getRacksByMachineRoomId
         .mockResolvedValueOnce([fakeRack])
@@ -112,8 +136,15 @@ describe('rack.service', () => {
   describe('getRacks', () => {
     it('returns rack list for any authenticated role', async () => {
       rackRepoMock.getRacksByMachineRoomId.mockResolvedValue([fakeRack])
-      const result = await getRacks({ machineRoomId: 'mr-1', auditId: 'audit-1' }, asReq(fakeRequest(UserRole.CLIENT)))
+      const result = await getRacks({ machineRoomId: 'mr-1', auditId: 'audit-1' }, asReq(fakeRequest(UserRole.AUDITOR)))
       expect(result).toEqual([fakeRack])
+    })
+
+    it('throws MachineRoomNotFoundError when the room is not in the audit', async () => {
+      machineRoomRepoMock.getMachineRoomById.mockResolvedValue({ ...fakeRoom, auditId: 'other-audit' })
+      await expect(
+        getRacks({ machineRoomId: 'mr-1', auditId: 'audit-1' }, asReq(fakeRequest(UserRole.AUDITOR))),
+      ).rejects.toBeInstanceOf(MachineRoomNotFoundError)
     })
   })
 
@@ -139,6 +170,13 @@ describe('rack.service', () => {
       await expect(
         getRackById({ rackId: 'rack-1', machineRoomId: 'mr-1', auditId: 'audit-1' }, asReq(fakeRequest(UserRole.AUDITOR))),
       ).rejects.toBeInstanceOf(RackNotFoundError)
+    })
+
+    it('throws MachineRoomNotFoundError when the room is not in the audit', async () => {
+      machineRoomRepoMock.getMachineRoomById.mockResolvedValue({ ...fakeRoom, auditId: 'other-audit' })
+      await expect(
+        getRackById({ rackId: 'rack-1', machineRoomId: 'mr-1', auditId: 'audit-1' }, asReq(fakeRequest(UserRole.AUDITOR))),
+      ).rejects.toBeInstanceOf(MachineRoomNotFoundError)
     })
   })
 
@@ -179,6 +217,17 @@ describe('rack.service', () => {
           asReq(fakeRequest(UserRole.AUDITOR)),
         ),
       ).rejects.toBeInstanceOf(AuditNotEditableError)
+    })
+
+    it('throws MachineRoomNotFoundError when the room is not in the audit', async () => {
+      auditRepoMock.getAuditOwnership.mockResolvedValue(fakeDraftOwnership)
+      machineRoomRepoMock.getMachineRoomById.mockResolvedValue({ ...fakeRoom, auditId: 'other-audit' })
+      await expect(
+        patchRack(
+          { rackId: 'rack-1', machineRoomId: 'mr-1', auditId: 'audit-1', data: {} },
+          asReq(fakeRequest(UserRole.AUDITOR)),
+        ),
+      ).rejects.toBeInstanceOf(MachineRoomNotFoundError)
     })
   })
 

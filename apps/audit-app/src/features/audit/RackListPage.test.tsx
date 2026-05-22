@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { axe } from 'vitest-axe'
 import { RackListPage } from './RackListPage'
 
 const fetchMock = vi.fn()
@@ -155,5 +156,21 @@ describe('RackListPage', () => {
     await screen.findByTestId('duplicate-rack-rack-1')
     await user.click(screen.getByTestId('duplicate-rack-rack-1'))
     await screen.findByTestId('rack-general-page')
+  })
+
+  it('passes axe accessibility scan', async () => {
+    routeFetch({
+      racksList: () =>
+        jsonResponse({
+          racks: [
+            rack('rack-1', { general: { rackDesignation: 'A' } }, '1'),
+            rack('rack-2', {}, '2'),
+          ],
+        }),
+    })
+    const { container } = renderPage()
+    await screen.findByTestId('rack-list')
+    const results = await axe(container)
+    expect(results).toHaveNoViolations()
   })
 })

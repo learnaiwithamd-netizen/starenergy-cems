@@ -5,8 +5,13 @@ import type {
   CreateAuditResponse,
   SectionId,
 } from '@cems/types'
-import { AuditStatus } from '@cems/types'
+import { AuditStatus, SECTION_IDS } from '@cems/types'
 import { AuditNotEditableError } from '../lib/audit-errors.js'
+
+function normalizeSectionId(raw: string | null): SectionId | null {
+  if (raw == null) return null
+  return (SECTION_IDS as readonly string[]).includes(raw) ? (raw as SectionId) : null
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type PrismaLike = any
@@ -34,6 +39,10 @@ export interface CreateAuditInput {
 export interface UpsertAuditSectionInput {
   tenantId: string
   auditId: string
+  /** Required by the atomic update predicate (P2 fix). Without it the
+   *  `audit.update` would succeed even after the audit was reassigned to
+   *  another auditor mid-request. */
+  auditorUserId: string
   sectionId: SectionId
   data: Record<string, unknown>
 }
@@ -44,6 +53,7 @@ interface AuditRow {
   status: string
   createdAt: Date
   updatedAt: Date
+  store: { storeNumber: string } | null
 }
 
 interface AuditDetailRow {
@@ -90,6 +100,7 @@ export async function listAuditsForCaller(
       status: true,
       createdAt: true,
       updatedAt: true,
+      store: { select: { storeNumber: true } },
     },
     orderBy: { updatedAt: 'desc' },
     take,
@@ -97,6 +108,7 @@ export async function listAuditsForCaller(
   const audits = rows.map<AuditListItem>((row) => ({
     id: row.id,
     storeId: row.storeId,
+    storeNumber: row.store?.storeNumber ?? null,
     status: row.status as AuditStatus,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -150,10 +162,15 @@ export async function getAuditOwnership(
 }
 
 /**
- * Auto-save upsert. Single transaction: (1) bump audits.current_section_id
- * + audits.updated_at by writing to audit; (2) upsert audit_sections row
- * keyed by (auditId, sectionId). Returns the audit's resulting updatedAt
- * as savedAt — the SPA shows it in the offline banner ("last saved Xm ago").
+ * Auto-save upsert. Single RLS-scoped transaction: (1) atomically bump
+ * `audits.current_section_id` + `audits.updated_at` USING a composite
+ * where-clause (id + auditorUserId + status='DRAFT') so a concurrent
+ * reassignment or status-flip cannot slip through; (2) upsert the
+ * audit_sections row. Returns the audit's resulting updatedAt as savedAt.
+ *
+ * Story 2.3 P2 fix — folds the ownership/DRAFT check into the update
+ * predicate so the previous TOCTOU window (separate read + write) is closed.
+ * Prisma surfaces a missed predicate as P2025 → `AuditNotEditableError`.
  */
 export async function upsertAuditSection(
   tx: PrismaLike,
@@ -162,7 +179,11 @@ export async function upsertAuditSection(
   let updated: { updatedAt: Date }
   try {
     updated = await tx.audit.update({
-      where: { id: input.auditId },
+      where: {
+        id: input.auditId,
+        auditorUserId: input.auditorUserId,
+        status: AuditStatus.DRAFT,
+      },
       data: { currentSectionId: input.sectionId },
       select: { updatedAt: true },
     })
@@ -238,14 +259,35 @@ export async function getAuditById(
   return {
     id: row.id,
     storeId: row.storeId,
+    auditorUserId: row.auditorUserId,
     status: row.status as AuditStatus,
-    currentSectionId: row.currentSectionId as SectionId | null,
+    // Normalise unknown values (older client / future story) to null so
+    // the SPA falls back gracefully instead of routing to a 404 stub.
+    currentSectionId: normalizeSectionId(row.currentSectionId),
     formVersion: row.formVersion,
     compressorDbVersion: row.compressorDbVersion,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
     sections,
   }
+}
+
+/**
+ * Returns the most-recent DRAFT audit owned by a specific auditor, or
+ * null. Used by `createAuditDraft` to enforce the one-DRAFT-per-auditor
+ * invariant (Story 2.3 P16). RLS already scopes the read to the caller's
+ * tenant.
+ */
+export async function findActiveDraftForAuditor(
+  tx: PrismaLike,
+  auditorUserId: string,
+): Promise<{ id: string; storeId: string } | null> {
+  const row: { id: string; storeId: string } | null = await tx.audit.findFirst({
+    where: { auditorUserId, status: AuditStatus.DRAFT },
+    select: { id: true, storeId: true },
+    orderBy: { updatedAt: 'desc' },
+  })
+  return row
 }
 
 function parseSectionData(raw: string): Record<string, unknown> {

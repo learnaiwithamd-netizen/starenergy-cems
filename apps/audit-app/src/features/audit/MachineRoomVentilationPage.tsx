@@ -21,6 +21,14 @@ interface VentilationFormValues {
   controlBy: string
 }
 
+/** Parse a numeric-input string, returning undefined for blank/non-finite input
+ *  (an `<input type="number">` can hold intermediate junk like "5e" or "-"). */
+function toNum(s: string): number | undefined {
+  if (s.trim() === '') return undefined
+  const n = Number(s)
+  return Number.isFinite(n) ? n : undefined
+}
+
 export function MachineRoomVentilationPage(): JSX.Element {
   const { auditId } = useParams<{ auditId: string }>()
   const navigate = useNavigate()
@@ -29,6 +37,9 @@ export function MachineRoomVentilationPage(): JSX.Element {
   const machineRoomsQ = useMachineRooms(auditId ?? null)
   const roomId = machineRoomsQ.data?.machineRooms[0]?.id ?? null
   const autoSave = useAutoSaveMachineRoom(auditId ?? null, roomId)
+  // `save` is a stable useCallback; destructure so the auto-save effect can
+  // depend on it without re-subscribing on every save-state transition.
+  const { save: saveRoom } = autoSave
 
   const {
     control,
@@ -74,21 +85,23 @@ export function MachineRoomVentilationPage(): JSX.Element {
     }
   }, [isForced, setValue])
 
-  // Auto-save on any field change
+  // Auto-save on any field change. Sends only the `ventilation` sub-key — the
+  // repo top-level-merges it, preserving `general` / `exhaust` server-side.
+  // Depend on the stable `autoSave.save`, not the churning `autoSave` object.
   useEffect(() => {
     const subscription = watch(() => {
       const values = getValues()
       const ventilation = {
         ventilationType: values.ventilationType || undefined,
         connectedToExhaust: values.connectedToExhaust || undefined,
-        setPointOn: values.setPointOn ? Number(values.setPointOn) : undefined,
-        setPointOff: values.setPointOff ? Number(values.setPointOff) : undefined,
+        setPointOn: toNum(values.setPointOn),
+        setPointOff: toNum(values.setPointOff),
         controlBy: values.controlBy || undefined,
       }
-      autoSave.save({ ventilation })
+      saveRoom({ ventilation })
     })
     return () => subscription.unsubscribe()
-  }, [watch, getValues, autoSave])
+  }, [watch, getValues, saveRoom])
 
   const onInvalid: SubmitErrorHandler<VentilationFormValues> = () => {
     setAttempted(true)

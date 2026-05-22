@@ -6,7 +6,7 @@ import {
   getLatestCompressorDbVersion,
   upsertAuditSection,
   getAuditById,
-  getAuditOwnership,
+  findActiveDraftForAuditor,
 } from './audit.repo.js'
 import { AuditNotEditableError } from '../lib/audit-errors.js'
 
@@ -14,7 +14,7 @@ type AnyArg = Record<string, unknown>
 
 describe('audit.repo', () => {
   describe('listAuditsForCaller', () => {
-    it('returns mapped rows with ISO timestamps', async () => {
+    it('returns mapped rows with ISO timestamps and joined storeNumber (P13)', async () => {
       const findMany = vi.fn<(arg: AnyArg) => Promise<unknown[]>>(async () => [
         {
           id: 'a-1',
@@ -22,6 +22,7 @@ describe('audit.repo', () => {
           status: 'DRAFT',
           createdAt: new Date('2026-05-01T00:00:00Z'),
           updatedAt: new Date('2026-05-02T00:00:00Z'),
+          store: { storeNumber: 'STORE-001' },
         },
         {
           id: 'a-2',
@@ -29,6 +30,7 @@ describe('audit.repo', () => {
           status: 'PUBLISHED',
           createdAt: new Date('2026-05-03T00:00:00Z'),
           updatedAt: new Date('2026-05-03T00:00:00Z'),
+          store: { storeNumber: 'STORE-002' },
         },
       ])
       const tx = { audit: { findMany } }
@@ -40,6 +42,7 @@ describe('audit.repo', () => {
       expect(res.audits[0]).toEqual({
         id: 'a-1',
         storeId: 'store-001',
+        storeNumber: 'STORE-001',
         status: AuditStatus.DRAFT,
         createdAt: '2026-05-01T00:00:00.000Z',
         updatedAt: '2026-05-02T00:00:00.000Z',
@@ -52,10 +55,27 @@ describe('audit.repo', () => {
         status: true,
         createdAt: true,
         updatedAt: true,
+        store: { select: { storeNumber: true } },
       })
       expect(arg['orderBy']).toEqual({ updatedAt: 'desc' })
       expect(arg['take']).toBe(50)
       expect(arg['where']).toEqual({})
+    })
+
+    it('falls back to null storeNumber when store relation is missing', async () => {
+      const findMany = vi.fn<(arg: AnyArg) => Promise<unknown[]>>(async () => [
+        {
+          id: 'a-1',
+          storeId: 'store-001',
+          status: 'DRAFT',
+          createdAt: new Date('2026-05-01T00:00:00Z'),
+          updatedAt: new Date('2026-05-02T00:00:00Z'),
+          store: null,
+        },
+      ])
+      const tx = { audit: { findMany } }
+      const res = await listAuditsForCaller(tx)
+      expect(res.audits[0]!.storeNumber).toBeNull()
     })
 
     it('honours custom take parameter', async () => {
@@ -147,24 +167,24 @@ describe('audit.repo', () => {
     })
   })
 
-  describe('getAuditOwnership', () => {
-    it('returns auditorUserId + status when audit exists in tenant', async () => {
-      const findUnique = vi.fn<(arg: AnyArg) => Promise<{ auditorUserId: string; status: string } | null>>(
-        async () => ({ auditorUserId: 'user-1', status: 'DRAFT' }),
+  describe('findActiveDraftForAuditor', () => {
+    it('returns the most-recent DRAFT for the auditor', async () => {
+      const findFirst = vi.fn<(arg: AnyArg) => Promise<{ id: string; storeId: string } | null>>(
+        async () => ({ id: 'audit-1', storeId: 'store-1' }),
       )
-      const tx = { audit: { findUnique } }
-      const res = await getAuditOwnership(tx, 'audit-1')
-      expect(res).toEqual({ auditorUserId: 'user-1', status: AuditStatus.DRAFT })
-      expect(findUnique.mock.calls[0]![0]).toEqual({
-        where: { id: 'audit-1' },
-        select: { auditorUserId: true, status: true },
+      const tx = { audit: { findFirst } }
+      const res = await findActiveDraftForAuditor(tx, 'user-1')
+      expect(res).toEqual({ id: 'audit-1', storeId: 'store-1' })
+      expect(findFirst.mock.calls[0]![0]).toEqual({
+        where: { auditorUserId: 'user-1', status: AuditStatus.DRAFT },
+        select: { id: true, storeId: true },
+        orderBy: { updatedAt: 'desc' },
       })
     })
 
-    it('returns null when audit not visible (RLS-filtered or missing)', async () => {
-      const findUnique = vi.fn(async () => null)
-      const tx = { audit: { findUnique } }
-      const res = await getAuditOwnership(tx, 'audit-x')
+    it('returns null when no draft exists', async () => {
+      const tx = { audit: { findFirst: vi.fn(async () => null) } }
+      const res = await findActiveDraftForAuditor(tx, 'user-1')
       expect(res).toBeNull()
     })
   })
@@ -179,12 +199,14 @@ describe('audit.repo', () => {
       const res = await upsertAuditSection(tx, {
         tenantId: 'tenant-a',
         auditId: 'audit-1',
+        auditorUserId: 'user-1',
         sectionId: 'general',
         data: { auditDate: '2026-05-09' },
       })
       expect(res).toEqual({ savedAt: '2026-05-09T10:00:00.000Z' })
+      // Atomic where-clause (P2 fix): id + auditorUserId + status='DRAFT'.
       expect(update.mock.calls[0]![0]).toEqual({
-        where: { id: 'audit-1' },
+        where: { id: 'audit-1', auditorUserId: 'user-1', status: AuditStatus.DRAFT },
         data: { currentSectionId: 'general' },
         select: { updatedAt: true },
       })
@@ -210,6 +232,7 @@ describe('audit.repo', () => {
         upsertAuditSection(tx, {
           tenantId: 'tenant-a',
           auditId: 'missing-audit',
+          auditorUserId: 'user-1',
           sectionId: 'general',
           data: {},
         }),
@@ -225,6 +248,7 @@ describe('audit.repo', () => {
       await upsertAuditSection(tx, {
         tenantId: 'tenant-a',
         auditId: 'audit-1',
+        auditorUserId: 'user-1',
         sectionId: 'hvac',
         data: {},
       })
@@ -266,6 +290,7 @@ describe('audit.repo', () => {
       const res = await getAuditById(tx, 'audit-1')
       expect(res).not.toBeNull()
       expect(res!.id).toBe('audit-1')
+      expect(res!.auditorUserId).toBe('user-1')
       expect(res!.status).toBe(AuditStatus.DRAFT)
       expect(res!.currentSectionId).toBe('general')
       expect(res!.sections).toHaveLength(1)
@@ -325,6 +350,24 @@ describe('audit.repo', () => {
       const tx = { audit: { findUnique } }
       const res = await getAuditById(tx, 'audit-3')
       expect(res!.sections[0]!.completedAt).toBe('2026-05-09T11:30:00.000Z')
+    })
+
+    it('normalises unknown currentSectionId to null (P6)', async () => {
+      const findUnique = vi.fn(async () => ({
+        id: 'audit-4',
+        storeId: 'store-001',
+        auditorUserId: 'user-1',
+        status: 'DRAFT',
+        currentSectionId: 'some-future-section',
+        formVersion: '1.0',
+        compressorDbVersion: '1.0',
+        createdAt: new Date('2026-05-08T10:00:00Z'),
+        updatedAt: new Date('2026-05-09T10:00:00Z'),
+        sections: [],
+      }))
+      const tx = { audit: { findUnique } }
+      const res = await getAuditById(tx, 'audit-4')
+      expect(res!.currentSectionId).toBeNull()
     })
   })
 })

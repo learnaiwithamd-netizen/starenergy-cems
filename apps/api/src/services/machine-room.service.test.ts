@@ -121,6 +121,25 @@ describe('machine-room.service', () => {
       await expect(getOrCreateMachineRoom({ auditId: 'audit-1' }, { request: fakeRequest(UserRole.AUDITOR) as any }))
         .rejects.toBeInstanceOf(AuditNotEditableError)
     })
+
+    it('on P2002 retries in a fresh transaction and returns the now-present room', async () => {
+      auditRepoMock.getAuditOwnership.mockResolvedValue(fakeDraftOwnership)
+      // 1st tx: no room yet → create. 2nd (fresh) tx: the concurrent room is visible.
+      machineRoomRepoMock.getMachineRoomsByAuditId
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([fakeMachineRoom])
+      const p2002 = Object.assign(new Error('unique'), { code: 'P2002' })
+      machineRoomRepoMock.createMachineRoom.mockRejectedValue(p2002)
+
+      const result = await getOrCreateMachineRoom(
+        { auditId: 'audit-1' },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        { request: fakeRequest(UserRole.AUDITOR) as any },
+      )
+
+      expect(result).toEqual(fakeMachineRoom)
+      expect(machineRoomRepoMock.createMachineRoom).toHaveBeenCalledTimes(1)
+    })
   })
 
   describe('getMachineRooms', () => {

@@ -78,3 +78,19 @@ export class RackNotFoundError extends Error {
     this.name = 'RackNotFoundError'
   }
 }
+
+export class CompressorNotFoundError extends Error {
+  readonly statusCode = 404
+  constructor(message = 'Compressor not found or not accessible') {
+    super(message)
+    this.name = 'CompressorNotFoundError'
+  }
+}
+
+export class CompressorModelNotFoundError extends Error {
+  readonly statusCode = 404
+  constructor(message = 'Compressor model not found in the regression database') {
+    super(message)
+    this.name = 'CompressorModelNotFoundError'
+  }
+}

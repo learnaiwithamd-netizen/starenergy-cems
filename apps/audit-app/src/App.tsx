@@ -12,6 +12,8 @@ import { MachineRoomVentilationPage } from './features/audit/MachineRoomVentilat
 import { MachineRoomExhaustPage } from './features/audit/MachineRoomExhaustPage'
 import { RackListPage } from './features/audit/RackListPage'
 import { RackGeneralPage } from './features/audit/RackGeneralPage'
+import { CompressorListPage } from './features/audit/CompressorListPage'
+import { CompressorEntryPage } from './features/audit/CompressorEntryPage'
 
 const SURFACE = 'audit' as const
 
@@ -86,12 +88,28 @@ export default function App() {
               </RequireAuth>
             }
           />
-          {/* Stub for Story 3.3 pipe-headers route (so RackGeneralPage navigation lands somewhere). */}
           <Route
-            path="/audit/:auditId/section/refrigeration/rack/:rackId/pipe-headers"
+            path="/audit/:auditId/section/refrigeration/rack/:rackId/compressors"
             element={
               <RequireAuth surface={SURFACE}>
-                <div data-testid="pipe-headers-stub">Pipe Headers — Story 3.3</div>
+                <CompressorListPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/audit/:auditId/section/refrigeration/rack/:rackId/compressor/:compressorId"
+            element={
+              <RequireAuth surface={SURFACE}>
+                <CompressorEntryPage />
+              </RequireAuth>
+            }
+          />
+          {/* Stub for Story 3.4 condenser route (so the Compressor List "Next" lands somewhere). */}
+          <Route
+            path="/audit/:auditId/section/refrigeration/rack/:rackId/condenser"
+            element={
+              <RequireAuth surface={SURFACE}>
+                <div data-testid="condenser-stub">Condenser — Story 3.4</div>
               </RequireAuth>
             }
           />

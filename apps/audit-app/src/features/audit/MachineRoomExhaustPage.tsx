@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type JSX } from 'react'
+import { useEffect, useState, type JSX } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import { useForm, Controller, type SubmitErrorHandler } from 'react-hook-form'
 import { Skeleton, Select, SelectTrigger, SelectValue, SelectContent, SelectItem, Input, cn } from '@cems/ui'
@@ -20,6 +20,14 @@ interface ExhaustFormValues {
   comment: string
 }
 
+/** Parse a numeric-input string, returning undefined for blank/non-finite input
+ *  (an `<input type="number">` can hold intermediate junk like "5e" or "-"). */
+function toNum(s: string): number | undefined {
+  if (s.trim() === '') return undefined
+  const n = Number(s)
+  return Number.isFinite(n) ? n : undefined
+}
+
 /** Build the `exhaust` sub-key payload — clears Forced-only fields on Natural. */
 function buildExhaustPayload(v: ExhaustFormValues): Record<string, unknown> {
   const isForced = v.exhaustType === 'Forced'
@@ -28,8 +36,8 @@ function buildExhaustPayload(v: ExhaustFormValues): Record<string, unknown> {
     qtyOfFans: isForced ? v.qtyOfFans || undefined : undefined,
     hpOfMotor: isForced ? v.hpOfMotor || undefined : undefined,
     powerRatingW: isForced ? v.powerRatingW || undefined : undefined,
-    setPointOn: isForced && v.setPointOn ? Number(v.setPointOn) : undefined,
-    setPointOff: isForced && v.setPointOff ? Number(v.setPointOff) : undefined,
+    setPointOn: isForced ? toNum(v.setPointOn) : undefined,
+    setPointOff: isForced ? toNum(v.setPointOff) : undefined,
     controlBy: isForced ? v.controlBy || undefined : 'None',
     comment: v.comment || undefined,
   }
@@ -44,11 +52,9 @@ export function MachineRoomExhaustPage(): JSX.Element {
   const room = machineRoomsQ.data?.machineRooms[0]
   const roomId = room?.id ?? null
   const autoSave = useAutoSaveMachineRoom(auditId ?? null, roomId)
-
-  // Hold the latest machine-room data so the auto-save subscription can merge
-  // the `exhaust` sub-key WITHOUT wiping `general` / `ventilation`.
-  const roomDataRef = useRef<Record<string, unknown>>({})
-  roomDataRef.current = room?.data ?? {}
+  // `save` is a stable useCallback; destructure so the auto-save effect can
+  // depend on it without re-subscribing on every save-state transition.
+  const { save: saveRoom } = autoSave
 
   const {
     control,
@@ -102,13 +108,16 @@ export function MachineRoomExhaustPage(): JSX.Element {
     }
   }, [isForced, setValue])
 
-  // Auto-save on any field change — merge with existing machine room data.
+  // Auto-save on any field change. We send only the `exhaust` sub-key — the
+  // repo now top-level-merges it into the existing machine-room data, so
+  // `general` / `ventilation` are preserved server-side (no stale-cache merge).
+  // Depend on the stable `saveRoom`, not the churning `autoSave` object.
   useEffect(() => {
     const subscription = watch(() => {
-      autoSave.save({ ...roomDataRef.current, exhaust: buildExhaustPayload(getValues()) })
+      saveRoom({ exhaust: buildExhaustPayload(getValues()) })
     })
     return () => subscription.unsubscribe()
-  }, [watch, getValues, autoSave])
+  }, [watch, getValues, saveRoom])
 
   const onInvalid: SubmitErrorHandler<ExhaustFormValues> = () => {
     setAttempted(true)

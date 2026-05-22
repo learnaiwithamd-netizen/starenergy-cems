@@ -64,6 +64,21 @@ export const rackGeneralDataSchema = z.object({
 })
 export type RackGeneralData = z.infer<typeof rackGeneralDataSchema>
 
+// ─── Story 3.3 — Compressor data sub-schema ───────────────────────────────────
+// Only modelNumber is required; capacity/eer/refrigerantType auto-populate from
+// the regression DB when the model is known, but stay editable + optional so an
+// unknown-model compressor (FR45 manual-entry fallback) can still be saved.
+export const compressorDataSchema = z.object({
+  modelNumber: z.string().min(1),
+  make: z.string().optional(),
+  serialNumber: z.string().optional(),
+  capacity: z.string().optional(),
+  eer: z.string().optional(),
+  refrigerantType: z.string().optional(),
+  comment: z.string().optional(),
+})
+export type CompressorData = z.infer<typeof compressorDataSchema>
+
 // ─── Story 3.2 — Exhaust + Rack dropdown option constants ─────────────────────
 
 export const EXHAUST_TYPE_OPTIONS = ['Forced', 'Natural'] as const

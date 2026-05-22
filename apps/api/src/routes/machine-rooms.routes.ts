@@ -49,10 +49,10 @@ export function registerMachineRoomsRoutes(app: FastifyInstance): void {
   app.get(
     '/api/v1/audits/:auditId/machine-rooms',
     {
-      preHandler: requireRole([UserRole.AUDITOR, UserRole.ADMIN, UserRole.CLIENT]),
+      preHandler: requireRole([UserRole.AUDITOR, UserRole.ADMIN]),
       schema: fastifySchemaFromZod({
         tags: ['machine-rooms'],
-        summary: 'List machine rooms for an audit. Any authenticated role. Story 3.1.',
+        summary: 'List machine rooms for an audit. AUDITOR + ADMIN only (not part of the client surface). Story 3.1 / 3.2 review.',
         params: z.object({ auditId: z.string().min(1) }),
         response: {
           200: listMachineRoomsResponseSchema,

@@ -15,6 +15,9 @@ export interface ServiceContext {
   request: FastifyRequest
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type PrismaTx = any
+
 /**
  * Returns the first machine room for the given audit, creating one (roomNumber='1')
  * if none exists. AUDITOR-only; caller must own a DRAFT audit.
@@ -28,7 +31,7 @@ export async function getOrCreateMachineRoom(
   if (!rls) throw new Error('getOrCreateMachineRoom requires an authenticated request')
   if (rls.role !== UserRole.AUDITOR) throw new RoleNotPermittedError()
 
-  return ctx.request.withRls(async (tx) => {
+  const getOrCreate = async (tx: PrismaTx): Promise<MachineRoom> => {
     const ownership = await getAuditOwnership(tx, auditId)
     if (!ownership || ownership.auditorUserId !== rls.userId || ownership.status !== AuditStatus.DRAFT) {
       throw new AuditNotEditableError()
@@ -37,17 +40,24 @@ export async function getOrCreateMachineRoom(
     const rooms = await getMachineRoomsByAuditId(tx, { auditId })
     if (rooms.length > 0) return rooms[0]!
 
-    try {
-      return await createMachineRoom(tx, { tenantId: rls.tenantId, auditId, roomNumber: '1' })
-    } catch (err: unknown) {
-      // P2002: concurrent request already created the room — return it (P15).
-      if (err != null && typeof err === 'object' && 'code' in err && (err as { code: unknown }).code === 'P2002') {
-        const rooms2 = await getMachineRoomsByAuditId(tx, { auditId })
-        if (rooms2.length > 0) return rooms2[0]!
-      }
-      throw err
+    return createMachineRoom(tx, { tenantId: rls.tenantId, auditId, roomNumber: '1' })
+  }
+
+  try {
+    return await ctx.request.withRls(getOrCreate)
+  } catch (err: unknown) {
+    // P2002: a concurrent request created the room first and doomed our tx.
+    // Retry once in a FRESH transaction — the committed row is now visible.
+    if (err != null && typeof err === 'object' && 'code' in err && (err as { code: unknown }).code === 'P2002') {
+      return ctx.request.withRls(async (tx: PrismaTx) => {
+        const rooms = await getMachineRoomsByAuditId(tx, { auditId })
+        if (rooms.length > 0) return rooms[0]!
+        // The other tx rolled back rather than committed — create it now.
+        return getOrCreate(tx)
+      })
     }
-  })
+    throw err
+  }
 }
 
 /**

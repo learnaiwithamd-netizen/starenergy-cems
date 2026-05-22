@@ -244,3 +244,81 @@ export type PatchRackResponse = z.infer<typeof patchRackResponseSchema>
 
 export const duplicateRackResponseSchema = rackSchema
 export type DuplicateRackResponse = Rack
+
+// ─── Compressor entity (Story 3.3) ───────────────────────────────────────────
+export const compressorSchema = z.object({
+  id: z.string(),
+  tenantId: z.string().optional(),
+  rackId: z.string(),
+  compressorNumber: z.string(),
+  compressorRefId: z.string().nullable(),
+  data: z.record(z.unknown()),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+})
+export type Compressor = z.infer<typeof compressorSchema>
+
+export const createCompressorResponseSchema = compressorSchema
+export type CreateCompressorResponse = Compressor
+
+export const listCompressorsResponseSchema = z.object({ compressors: z.array(compressorSchema) })
+export type ListCompressorsResponse = z.infer<typeof listCompressorsResponseSchema>
+
+export const getCompressorResponseSchema = compressorSchema
+export type GetCompressorResponse = Compressor
+
+/** Params for create/list (no compressorId). */
+export const compressorListParamsSchema = z.object({
+  auditId: z.string().min(1),
+  roomId: z.string().min(1),
+  rackId: z.string().min(1),
+})
+export type CompressorListParams = z.infer<typeof compressorListParamsSchema>
+
+/** Params for get/patch/duplicate/report (with compressorId). */
+export const compressorItemParamsSchema = compressorListParamsSchema.extend({
+  compressorId: z.string().min(1),
+})
+export type CompressorItemParams = z.infer<typeof compressorItemParamsSchema>
+
+export const patchCompressorBodySchema = z.object({
+  data: z.record(z.unknown()),
+  compressorRefId: z.string().nullable().optional(),
+})
+export type PatchCompressorBody = z.infer<typeof patchCompressorBodySchema>
+
+export const patchCompressorResponseSchema = z.object({
+  savedAt: z.string(),
+  compressorId: z.string(),
+})
+export type PatchCompressorResponse = z.infer<typeof patchCompressorResponseSchema>
+
+export const duplicateCompressorResponseSchema = compressorSchema
+export type DuplicateCompressorResponse = Compressor
+
+export const reportUnknownModelResponseSchema = z.object({
+  reported: z.boolean(),
+  alreadyReported: z.boolean().optional(),
+  adminsNotified: z.number().int().nonnegative().optional(),
+})
+export type ReportUnknownModelResponse = z.infer<typeof reportUnknownModelResponseSchema>
+
+// ─── Compressor regression-DB lookup (Story 3.3) ──────────────────────────────
+export const compressorRefSchema = z.object({
+  id: z.string(),
+  compressorDbVersion: z.string(),
+  modelNumber: z.string(),
+  manufacturer: z.string(),
+  refrigerantType: z.string(),
+  regressionCoefficients: z.record(z.unknown()),
+  createdAt: z.string(),
+})
+export type CompressorRef = z.infer<typeof compressorRefSchema>
+
+export const getCompressorRefResponseSchema = compressorRefSchema
+export type GetCompressorRefResponse = CompressorRef
+
+export const compressorLookupQuerySchema = z.object({
+  version: z.string().optional(),
+})
+export type CompressorLookupQuery = z.infer<typeof compressorLookupQuerySchema>

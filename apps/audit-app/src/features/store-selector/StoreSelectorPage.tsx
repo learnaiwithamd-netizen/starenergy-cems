@@ -132,8 +132,12 @@ function ResumeAuditCallout({
   stores: readonly StoreSummary[]
   onResume: () => void
 }): JSX.Element {
+  // P13 — prefer the storeNumber the server attached to the audit row
+  // (always present); fall back to the assigned-stores cache; never show
+  // the bare-id or a vague placeholder if it can be avoided.
   const matchingStore = stores.find((s) => s.id === audit.storeId)
-  const storeLabel = matchingStore?.storeNumber ?? '(your last store)'
+  const storeLabel =
+    audit.storeNumber ?? matchingStore?.storeNumber ?? '(your last store)'
   return (
     <div
       role="region"

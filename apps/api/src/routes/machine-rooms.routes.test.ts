@@ -198,6 +198,20 @@ describe('machine-rooms.routes', () => {
       expect(JSON.parse(res.body)).toEqual({ machineRooms: [] })
       await app.close()
     })
+
+    it('403 for CLIENT (not part of the client surface)', async () => {
+      const app = await buildTestApp()
+      const token = await makeToken(UserRole.CLIENT)
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/v1/audits/audit-1/machine-rooms',
+        headers: { authorization: `Bearer ${token}` },
+      })
+
+      expect(res.statusCode).toBe(403)
+      await app.close()
+    })
   })
 
   describe('PATCH /api/v1/audits/:auditId/machine-rooms/:roomId', () => {

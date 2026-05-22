@@ -12,6 +12,8 @@ import {
   AuditNotEditableError,
   AuditNotFoundError,
   DraftAlreadyExistsError,
+  CompressorModelNotFoundError,
+  CompressorNotFoundError,
   MachineRoomNotFoundError,
   RackNotFoundError,
   StoreNotAssignedError,
@@ -201,6 +203,20 @@ export function buildErrorHandler() {
     // Rack not found or not accessible → 404.
     if (error instanceof RackNotFoundError) {
       const problem = buildProblemDetail(404, error.message, instance, undefined, 'rack-not-found')
+      reply.code(404).type('application/problem+json').send(problem)
+      return
+    }
+
+    // Compressor not found or not accessible → 404.
+    if (error instanceof CompressorNotFoundError) {
+      const problem = buildProblemDetail(404, error.message, instance, undefined, 'compressor-not-found')
+      reply.code(404).type('application/problem+json').send(problem)
+      return
+    }
+
+    // Compressor model not in the regression DB → 404 (drives the SPA's manual-entry path).
+    if (error instanceof CompressorModelNotFoundError) {
+      const problem = buildProblemDetail(404, error.message, instance, undefined, 'compressor-model-not-found')
       reply.code(404).type('application/problem+json').send(problem)
       return
     }

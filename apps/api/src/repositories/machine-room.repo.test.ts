@@ -137,7 +137,8 @@ describe('machine-room.repo', () => {
       )
       const upsert = vi.fn(async () => ({}))
       const findFirst = vi.fn(async () => null)
-      const tx = { machineRoom: { update }, auditSection: { upsert, findFirst }, audit: { update } }
+      const mrFindFirst = vi.fn(async () => ({ data: '{}' }))
+      const tx = { machineRoom: { findFirst: mrFindFirst, update }, auditSection: { upsert, findFirst }, audit: { update } }
 
       const result = await upsertMachineRoomData(tx, {
         id: 'mr-1',
@@ -163,11 +164,46 @@ describe('machine-room.repo', () => {
       expect((update.mock.calls[1]![0] as AnyArg)['where']).toEqual({ id: 'audit-1' })
     })
 
+    it('shallow-merges the incoming sub-key with existing data (no clobber)', async () => {
+      const mrFindFirst = vi.fn(async () => ({
+        data: JSON.stringify({ ventilation: { ventilationType: 'Forced' } }),
+      }))
+      const update = vi.fn<(arg: AnyArg) => Promise<unknown>>(async () => ({ updatedAt: now }))
+      const upsert = vi.fn(async () => ({}))
+      const findFirst = vi.fn(async () => null)
+      const tx = { machineRoom: { findFirst: mrFindFirst, update }, auditSection: { upsert, findFirst }, audit: { update } }
+
+      await upsertMachineRoomData(tx, {
+        id: 'mr-1',
+        auditId: 'audit-1',
+        tenantId: 'tenant-a',
+        data: { general: { machineRoomId: '1' } },
+      })
+
+      const written = JSON.parse(
+        (update.mock.calls[0]![0] as { data: { data: string } }).data.data,
+      ) as Record<string, unknown>
+      expect(written).toEqual({
+        ventilation: { ventilationType: 'Forced' },
+        general: { machineRoomId: '1' },
+      })
+    })
+
+    it('throws MachineRoomNotFoundError when the room is missing (read returns null)', async () => {
+      const mrFindFirst = vi.fn(async () => null)
+      const tx = { machineRoom: { findFirst: mrFindFirst, update: vi.fn() } }
+
+      await expect(
+        upsertMachineRoomData(tx, { id: 'missing', auditId: 'audit-1', tenantId: 'tenant-a', data: {} }),
+      ).rejects.toBeInstanceOf(MachineRoomNotFoundError)
+    })
+
     it('throws MachineRoomNotFoundError on P2025', async () => {
       const p2025 = Object.assign(new Error('Record not found'), { code: 'P2025' })
+      const mrFindFirst = vi.fn(async () => ({ data: '{}' }))
       const update = vi.fn(async () => { throw p2025 })
       const upsert = vi.fn()
-      const tx = { machineRoom: { update }, auditSection: { upsert }, audit: { update } }
+      const tx = { machineRoom: { findFirst: mrFindFirst, update }, auditSection: { upsert }, audit: { update } }
 
       await expect(
         upsertMachineRoomData(tx, { id: 'missing', auditId: 'audit-1', tenantId: 'tenant-a', data: {} }),
